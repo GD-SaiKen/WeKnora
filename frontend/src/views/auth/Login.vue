@@ -1195,8 +1195,9 @@ onMounted(async () => {
   cursor: pointer;
 
   .logo-image {
-    width: 120px;
-    height: auto;
+    // Square brand mark: height-driven so the row height stays as before.
+    height: 38px;
+    width: auto;
   }
 }
 
@@ -1647,7 +1648,7 @@ onMounted(async () => {
     left: 40px;
 
     .logo-image {
-      width: 100px;
+      height: 32px;
     }
   }
 
@@ -1695,7 +1696,7 @@ onMounted(async () => {
     left: 30px;
 
     .logo-image {
-      width: 80px;
+      height: 25px;
     }
   }
 
@@ -1755,7 +1756,7 @@ onMounted(async () => {
     left: 20px;
 
     .logo-image {
-      width: 70px;
+      height: 22px;
     }
   }
 
@@ -1824,7 +1825,8 @@ html[theme-mode="dark"] {
   }
 
   .header-logo .logo-image {
-    filter: invert(1) hue-rotate(180deg) brightness(1.1);
+    // Blue mark on the dark green gradient: brighten, don't invert.
+    filter: brightness(1.5) saturate(1.1);
   }
 
   .header-link {

@@ -1371,8 +1371,10 @@ const resizeSidebar = (delta: number, keyboard: boolean) => {
         overflow: hidden;
 
         .logo {
-            width: 108px;
-            height: auto;
+            // Square brand mark (was a 400x126 wordmark): scale by height so it
+            // fits the 50px logo row instead of overflowing it.
+            height: 32px;
+            width: auto;
         }
 
         .lite-badge {
@@ -1975,9 +1977,10 @@ const resizeSidebar = (delta: number, keyboard: boolean) => {
 }
 </style>
 <style lang="less">
-// Dark mode: invert dark logo to light
+// Dark mode: the mark is a saturated blue on transparency, so lift its
+// lightness instead of inverting (invert would wash the brand hue out).
 html[theme-mode="dark"] .aside_box .logo_box .logo {
-    filter: invert(1) hue-rotate(180deg);
+    filter: brightness(1.35) saturate(1.15);
 }
 
 // Dark mode: 滚动条在深色背景下需要更亮的颜色才看得见
