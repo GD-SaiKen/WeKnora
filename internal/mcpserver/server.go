@@ -14,6 +14,7 @@ package mcpserver
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"sync"
 	"time"
@@ -145,6 +146,15 @@ func endpointFromContext(ctx context.Context) (*types.MCPEndpoint, error) {
 
 // filterTools hides catalog entries the endpoint did not enable.
 func (s *Server) filterTools(ctx context.Context, all []mcp.Tool) []mcp.Tool {
+	if call, ok := types.SharedMCPCallFromContext(ctx); ok {
+		out := make([]mcp.Tool, 0, len(all))
+		for _, t := range all {
+			if sharedToolAllowed(call, t.Name) {
+				out = append(out, t)
+			}
+		}
+		return out
+	}
 	ep, err := endpointFromContext(ctx)
 	if err != nil {
 		return nil
@@ -162,6 +172,20 @@ func (s *Server) filterTools(ctx context.Context, all []mcp.Tool) []mcp.Tool {
 // client cannot invoke a hidden tool by name.
 func (s *Server) guardTool(next server.ToolHandlerFunc) server.ToolHandlerFunc {
 	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		if call, ok := types.SharedMCPCallFromContext(ctx); ok {
+			if !sharedToolAllowed(call, req.Params.Name) {
+				return mcp.NewToolResultErrorf("tool %q is not enabled for this workspace entry", req.Params.Name), nil
+			}
+			rateKey := fmt.Sprintf("%d:%s", call.TenantID, call.User.ID)
+			if !s.limiter.Allow(ctx, rateKey, call.RateLimitPerMinute) {
+				return mcp.NewToolResultError("rate limit exceeded, retry shortly"), nil
+			}
+			result, err := next(ctx, req)
+			if err != nil {
+				return result, err
+			}
+			return s.rewriteResourceURLsForShared(ctx, call, result), nil
+		}
 		ep, err := endpointFromContext(ctx)
 		if err != nil {
 			return mcp.NewToolResultError("unauthorized"), nil

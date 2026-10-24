@@ -41,6 +41,7 @@
           <h2>{{ $t('integrations.mcpserver.title') }}</h2>
           <p class="section-description">{{ $t('integrations.mcpserver.subtitle') }}</p>
         </div>
+        <SharedMcpSettings />
         <McpServerIntegrationSettings />
       </div>
 
@@ -58,6 +59,7 @@ import IMChannelPanel from '@/components/IMChannelPanel.vue'
 import AgentEmbedChannelPanel from '@/components/AgentEmbedChannelPanel.vue'
 import ApiIntegrationSettings from '@/views/integrations/ApiIntegrationSettings.vue'
 import McpServerIntegrationSettings from '@/views/integrations/McpServerIntegrationSettings.vue'
+import SharedMcpSettings from '@/views/integrations/SharedMcpSettings.vue'
 import ChromeExtensionLanding from '@/views/integrations/ChromeExtensionLanding.vue'
 import ClawSkillLanding from '@/views/integrations/ClawSkillLanding.vue'
 import CliIntegrationLanding from '@/views/integrations/CliIntegrationLanding.vue'

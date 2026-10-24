@@ -88,6 +88,9 @@ type RouterParams struct {
 	EmbedChannelService          interfaces.EmbedChannelService
 	MCPEndpointHandler           *handler.MCPEndpointHandler
 	MCPEndpointService           interfaces.MCPEndpointService
+	SharedMCPOAuthHandler        *handler.SharedMCPOAuthHandler
+	SharedMCPConfigHandler       *handler.SharedMCPConfigHandler
+	SharedMCPService             interfaces.SharedMCPService
 	MCPServer                    *mcpserver.Server
 	RedisClient                  *redis.Client
 	DataSourceHandler            *handler.DataSourceHandler
@@ -190,8 +193,14 @@ func NewRouter(params RouterParams) *gin.Engine {
 		params.ResourceCatalog,
 	)
 
-	// Workspace MCP server surface (/mcp/:endpoint_id): bearer-token auth per
-	// endpoint, so it must precede the global Auth middleware.
+	// Fixed /mcp entry (user OAuth) and per-endpoint MCP surfaces must precede global Auth.
+	RegisterSharedMCPRoutes(
+		r,
+		params.SharedMCPOAuthHandler,
+		params.MCPServer,
+		params.SharedMCPService,
+		params.TenantService,
+	)
 	RegisterMCPServerRoutes(r, params.MCPServer, params.MCPEndpointService, params.TenantService)
 
 	// Short-lived capability URLs for IM and other clients that cannot attach
@@ -327,6 +336,7 @@ func NewRouter(params RouterParams) *gin.Engine {
 		RegisterIMChannelRoutes(v1, params.IMHandler, rbacGuards)
 		RegisterEmbedChannelRoutes(v1, params.EmbedChannelHandler, rbacGuards)
 		RegisterMCPEndpointRoutes(v1, params.MCPEndpointHandler, rbacGuards)
+		RegisterSharedMCPManagementRoutes(v1, params.SharedMCPOAuthHandler, params.SharedMCPConfigHandler, rbacGuards)
 		RegisterDataSourceRoutes(v1, params.DataSourceHandler, params.DataSourceCredentialsHandler, rbacGuards)
 		RegisterWeKnoraCloudRoutes(v1, params.WeKnoraCloudHandler, rbacGuards)
 		RegisterWikiPageRoutes(v1, params.WikiPageHandler, rbacGuards)

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Tencent/WeKnora/internal/config"
+	"github.com/Tencent/WeKnora/internal/sharedmcp"
 	"github.com/Tencent/WeKnora/internal/logger"
 	"github.com/Tencent/WeKnora/internal/types"
 	"github.com/Tencent/WeKnora/internal/types/interfaces"
@@ -54,7 +55,9 @@ var noAuthAPI = map[string][]string{
 	// MCP OAuth provider redirect: the third-party authorization server
 	// redirects the browser here without a WeKnora bearer token. The request
 	// is authenticated by the opaque, single-use `state` parameter instead.
-	"/api/v1/mcp-oauth/callback": {"GET"},
+	"/api/v1/mcp-oauth/callback":        {"GET"},
+	"/api/v1/oauth/mcp/register":        {"POST"},
+	"/api/v1/oauth/mcp/token":           {"POST"},
 	"/api/v1/auth/refresh":       {"POST"},
 	// IM platforms (Feishu, Slack, etc.) commonly issue a HEAD request
 	// before GET to validate Content-Type / Content-Length when rendering
@@ -158,6 +161,11 @@ func Auth(
 		bearerPresented := false
 		if token, ok := bearerToken(c); ok {
 			bearerPresented = true
+			if sharedmcp.LooksLikeMCPSessionToken(token) {
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized: mcp token cannot access this API"})
+				c.Abort()
+				return
+			}
 			user, jwtTenantID, err := userService.ValidateToken(c.Request.Context(), token)
 			if err == nil && user != nil {
 				if authenticateJWTUser(c, tenantService, memberService, cfg, user, jwtTenantID) {

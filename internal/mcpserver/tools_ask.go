@@ -62,7 +62,11 @@ type askImage struct {
 func (s *Server) handleAsk(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	ep, err := endpointFromContext(ctx)
 	if err != nil {
-		return mcp.NewToolResultError("unauthorized"), nil
+		if call, ok := types.SharedMCPCallFromContext(ctx); ok {
+			ep = sharedMCPAsEndpoint(call)
+		} else {
+			return mcp.NewToolResultError("unauthorized"), nil
+		}
 	}
 	question, err := req.RequireString("question")
 	if err != nil || strings.TrimSpace(question) == "" {
@@ -182,6 +186,9 @@ func (s *Server) resolveAskSession(
 	ctx context.Context, ep *types.MCPEndpoint, sessionID, question string,
 ) (*types.Session, error) {
 	ownerID := types.MCPEndpointPrincipal(ep.TenantID, ep.ID).StorageID()
+	if call, ok := types.SharedMCPCallFromContext(ctx); ok {
+		ownerID = call.User.ID
+	}
 	if sessionID = strings.TrimSpace(sessionID); sessionID != "" {
 		session, err := s.sessionService.GetSessionByID(ctx, ep.TenantID, sessionID)
 		if err != nil || session == nil || session.UserID != ownerID {

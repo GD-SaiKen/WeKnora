@@ -315,6 +315,10 @@ func BuildContainer(container *dig.Container) *dig.Container {
 	must(container.Provide(service.NewWikiLintService))
 	must(container.Provide(service.NewEmbedChannelService))
 	must(container.Provide(service.NewMCPEndpointService))
+	must(container.Provide(repository.NewSharedMCPRepository))
+	must(container.Provide(service.NewSharedMCPService))
+	must(container.Provide(handler.NewSharedMCPOAuthHandler))
+	must(container.Provide(handler.NewSharedMCPConfigHandler))
 	must(container.Provide(mcpserver.NewServer))
 
 	// Web search service (needed by AgentService)
