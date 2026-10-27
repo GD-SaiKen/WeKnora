@@ -8029,6 +8029,11 @@ export default {
       copied: 'Copied',
     },
     title: 'Publish & Integrations',
+    sharedMcp: {
+      enabled: 'Enable shared MCP entry',
+      url: 'Agent connection URL',
+      hint: 'External agents only need this URL: {url}. On first connect, sign in with your WeKnora account in the browser. No token in config.',
+    },
     mcpserver: {
       title: 'MCP Server',
       subtitle: 'Publish this workspace as an MCP server that Claude Desktop, Cursor, Claude Code and other MCP clients connect to directly. Each endpoint has its own token, knowledge-base scope and tool list.',

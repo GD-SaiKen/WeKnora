@@ -186,6 +186,8 @@ const (
 	AuditActionFAQImportStarted   AuditAction = "faq.import_started"
 	AuditActionFAQImportCompleted AuditAction = "faq.import_completed"
 	AuditActionFAQImportFailed    AuditAction = "faq.import_failed"
+
+	AuditActionSharedMCPToolCall AuditAction = "mcp.shared_tool_call"
 )
 
 // AuditOutcome separates asynchronous acceptance from terminal business

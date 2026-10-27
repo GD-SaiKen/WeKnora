@@ -18,21 +18,27 @@ func sharedMCPAsEndpoint(call *types.SharedMCPCall) *types.MCPEndpoint {
 	}
 }
 
-func sharedToolAllowed(call *types.SharedMCPCall, name string) bool {
+func sharedToolInCeiling(call *types.SharedMCPCall, name string) bool {
 	if call == nil {
 		return false
 	}
 	for _, t := range call.Tools {
-		if t != name {
-			continue
+		if t == name {
+			return true
 		}
-		def, ok := types.LookupMCPEndpointTool(name)
-		if ok && def.Destructive && call.Role == types.TenantRoleViewer {
-			return false
-		}
-		return true
 	}
 	return false
+}
+
+func sharedToolAllowed(call *types.SharedMCPCall, name string) bool {
+	if !sharedToolInCeiling(call, name) {
+		return false
+	}
+	def, ok := types.LookupMCPEndpointTool(name)
+	if ok && def.Destructive && call.Role == types.TenantRoleViewer {
+		return false
+	}
+	return true
 }
 
 func (s *Server) rewriteResourceURLsForShared(

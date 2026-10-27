@@ -56,6 +56,7 @@ type Server struct {
 	fileService      interfaces.FileService
 	storageResolver  interfaces.StorageBackendResolver
 	endpointRepo     interfaces.MCPEndpointRepository
+	auditSvc         interfaces.AuditLogService
 	db               *gorm.DB
 	cfg              *config.Config
 
@@ -84,6 +85,7 @@ func NewServer(
 	resourceCatalog interfaces.ResourceCatalog,
 	fileService interfaces.FileService,
 	storageResolver interfaces.StorageBackendResolver,
+	auditSvc interfaces.AuditLogService,
 ) *Server {
 	s := &Server{
 		kbService:        kbService,
@@ -96,6 +98,7 @@ func NewServer(
 		kbShareService:   kbShareService,
 		tenantService:    tenantService,
 		endpointRepo:     endpointRepo,
+		auditSvc:         auditSvc,
 		db:               db,
 		cfg:              cfg,
 		resourceCatalog:  resourceCatalog,
@@ -149,7 +152,7 @@ func (s *Server) filterTools(ctx context.Context, all []mcp.Tool) []mcp.Tool {
 	if call, ok := types.SharedMCPCallFromContext(ctx); ok {
 		out := make([]mcp.Tool, 0, len(all))
 		for _, t := range all {
-			if sharedToolAllowed(call, t.Name) {
+			if sharedToolInCeiling(call, t.Name) {
 				out = append(out, t)
 			}
 		}
@@ -173,10 +176,20 @@ func (s *Server) filterTools(ctx context.Context, all []mcp.Tool) []mcp.Tool {
 func (s *Server) guardTool(next server.ToolHandlerFunc) server.ToolHandlerFunc {
 	return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		if call, ok := types.SharedMCPCallFromContext(ctx); ok {
-			if !sharedToolAllowed(call, req.Params.Name) {
-				return mcp.NewToolResultErrorf("tool %q is not enabled for this workspace entry", req.Params.Name), nil
+			if ep, epErr := endpointFromContext(ctx); epErr == nil && ep != nil {
+				return mcp.NewToolResultError("unauthorized"), nil
 			}
-			rateKey := fmt.Sprintf("%d:%s", call.TenantID, call.User.ID)
+			toolName := req.Params.Name
+			kbIDs := sharedMCPToolKBIDs(req)
+			allowed := sharedToolAllowed(call, toolName)
+			s.auditSharedMCPToolCall(ctx, call, toolName, allowed, kbIDs)
+			if !sharedToolInCeiling(call, toolName) {
+				return mcp.NewToolResultErrorf("tool %q is not enabled for this workspace entry", toolName), nil
+			}
+			if !allowed {
+				return mcp.NewToolResultError("tool is not permitted for your role"), nil
+			}
+			rateKey := fmt.Sprintf("user:%d:%s", call.TenantID, call.User.ID)
 			if !s.limiter.Allow(ctx, rateKey, call.RateLimitPerMinute) {
 				return mcp.NewToolResultError("rate limit exceeded, retry shortly"), nil
 			}

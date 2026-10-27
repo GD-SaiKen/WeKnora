@@ -132,6 +132,10 @@ func (s *Server) selectKnowledgeBases(
 	for _, sel := range cleaned {
 		kb := matchKnowledgeBase(allowed, sel)
 		if kb == nil {
+			if _, shared := types.SharedMCPCallFromContext(ctx); shared {
+				return nil, fmt.Errorf("one or more knowledge bases are outside your access scope; " +
+					"call list_knowledge_bases to see what is available")
+			}
 			return nil, fmt.Errorf("knowledge base %q was not found or is outside this endpoint's scope; "+
 				"call list_knowledge_bases to see what is available", sel)
 		}
