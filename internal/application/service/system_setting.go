@@ -161,6 +161,18 @@ var registry = map[string]settingSpec{
 		Description: "是否启用复杂密码。开启后密码必须包含大小写字母、数字和特殊字符。" +
 			"修改后立即生效，只影响新注册用户或新密码修改/重置操作。特殊字符包含：!@#$%^&*()_+-=[]{}|;:,.<>?",
 	},
+	"auth.oidc_auto_provision": {
+		Type:        "bool",
+		Default:     true,
+		Category:    "auth",
+		Description: "企业登录找不到本地账号时是否自动开户。企业目录同步部署请关闭。",
+	},
+	"identity.company_organization_id": {
+		Type:        "string",
+		Default:     "",
+		Category:    "identity",
+		Description: "全员自动加入的公司共享空间（组织）ID。保存后把在用账号的个人空间以 editor 加入，不自动共享知识库。",
+	},
 	// gallery.policy is the platform-wide image-gallery attribute policy:
 	// a JSON document (types.GalleryPolicyTier) that can toggle attribute
 	// sources and override per-attribute usage flags (in_filter /

@@ -4247,7 +4247,11 @@ export default {
         auth: {
           registration_mode: '注册模式。开放注册允许任何人创建账号；仅限邀请注册要求有效邀请链接；禁止注册不允许创建账号，但已有账号仍可接受邀请。保存后立即生效。',
           default_tenant_mode: '公开注册后的空间初始化策略。create_personal 会自动创建个人空间并授予 Owner；tenantless 仅创建账户，用户需要接受邀请或主动创建空间。只影响之后注册的用户。',
-          complex_password_enabled: '是否启用复杂密码。开启后密码必须包含大小写字母、数字和特殊字符。修改后立即生效，只影响新注册用户或新密码修改/重置操作。特殊字符包含：{specialChars}'
+          complex_password_enabled: '是否启用复杂密码。开启后密码必须包含大小写字母、数字和特殊字符。修改后立即生效，只影响新注册用户或新密码修改/重置操作。特殊字符包含：{specialChars}',
+          oidc_auto_provision: '关闭后，企业登录找不到本地账号时不会自动开户，需由目录同步或管理员创建。'
+        },
+        identity: {
+          company_organization_id: '指定后，在用账号的个人空间会以 editor 自动加入该公司共享空间；不会自动共享个人知识库。'
         }
       },
       keyLabels: {
@@ -4278,7 +4282,11 @@ export default {
         auth: {
           registration_mode: '注册模式',
           default_tenant_mode: '注册默认空间策略',
-          complex_password_enabled: '启用复杂密码'
+          complex_password_enabled: '启用复杂密码',
+          oidc_auto_provision: '企业登录自动开户'
+        },
+        identity: {
+          company_organization_id: '公司共享空间'
         }
       },
       runtime: {

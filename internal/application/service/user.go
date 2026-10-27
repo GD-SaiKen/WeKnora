@@ -24,6 +24,7 @@ import (
 
 	apprepo "github.com/Tencent/WeKnora/internal/application/repository"
 	"github.com/Tencent/WeKnora/internal/config"
+	"github.com/Tencent/WeKnora/internal/directory"
 	"github.com/Tencent/WeKnora/internal/logger"
 	"github.com/Tencent/WeKnora/internal/types"
 	"github.com/Tencent/WeKnora/internal/types/interfaces"
@@ -99,6 +100,7 @@ func getJwtSecret() string {
 // userService implements the UserService interface
 type userService struct {
 	userRepo         interfaces.UserRepository
+	directoryRepo    interfaces.DirectoryIdentityRepository
 	tokenRepo        interfaces.AuthTokenRepository
 	tenantService    interfaces.TenantService
 	memberService    interfaces.TenantMemberService
@@ -111,6 +113,7 @@ type userService struct {
 func NewUserService(
 	configInfo *config.Config,
 	userRepo interfaces.UserRepository,
+	directoryRepo interfaces.DirectoryIdentityRepository,
 	tokenRepo interfaces.AuthTokenRepository,
 	tenantService interfaces.TenantService,
 	memberService interfaces.TenantMemberService,
@@ -118,12 +121,20 @@ func NewUserService(
 ) interfaces.UserService {
 	return &userService{
 		userRepo:         userRepo,
+		directoryRepo:    directoryRepo,
 		tokenRepo:        tokenRepo,
 		tenantService:    tenantService,
 		memberService:    memberService,
 		config:           configInfo,
 		systemSettingSvc: systemSettingSvc,
 	}
+}
+
+func (s *userService) oidcAutoProvisionEnabled(ctx context.Context) bool {
+	if s.systemSettingSvc == nil {
+		return true
+	}
+	return s.systemSettingSvc.GetBool(ctx, "auth.oidc_auto_provision", "", true)
 }
 
 func (s *userService) complexPasswordEnabled(ctx context.Context) bool {
@@ -252,6 +263,13 @@ func (s *userService) Login(ctx context.Context, req *types.LoginRequest) (*type
 		return &types.LoginResponse{
 			Success: false,
 			Message: "Account is disabled",
+		}, nil
+	}
+
+	if !user.PasswordLoginEnabled {
+		return &types.LoginResponse{
+			Success: false,
+			Message: "请使用企业登录",
 		}, nil
 	}
 
@@ -513,17 +531,9 @@ func (s *userService) LoginWithOIDC(
 		return nil, errors.New("OIDC provider did not return email")
 	}
 
-	user, err := s.userRepo.GetUserByEmail(ctx, userInfo.Email)
-	if err != nil && !isUserLookupNotFound(err) {
-		return nil, fmt.Errorf("failed to query user by email: %w", err)
-	}
-	isNewUser := false
-	if isUserLookupNotFound(err) || user == nil {
-		user, err = s.provisionOIDCUser(ctx, userInfo, provisioning)
-		if err != nil {
-			return nil, err
-		}
-		isNewUser = true
+	user, isNewUser, err := s.resolveOIDCLoginUser(ctx, userInfo, provisioning)
+	if err != nil {
+		return nil, err
 	}
 
 	if !user.IsActive {
@@ -1842,6 +1852,57 @@ func (s *userService) fetchOIDCUserInfo(ctx context.Context, endpoint, accessTok
 // that governs public password registration) so both entry points share a
 // single deployment policy. An empty mode falls back to create_personal via
 // Register's own defaulting.
+func (s *userService) resolveOIDCLoginUser(
+	ctx context.Context,
+	userInfo *types.OIDCUserInfo,
+	provisioning types.TenantProvisioningMode,
+) (*types.User, bool, error) {
+	subject := strings.TrimSpace(userInfo.Subject)
+	if subject != "" && s.directoryRepo != nil {
+		userID, err := s.directoryRepo.GetUserIDBySubject(ctx, subject)
+		if err != nil {
+			return nil, false, fmt.Errorf("failed to query user by directory subject: %w", err)
+		}
+		if userID != "" {
+			user, err := s.userRepo.GetUserByID(ctx, userID)
+			if err != nil {
+				return nil, false, err
+			}
+			return user, false, nil
+		}
+	}
+
+	normalizedEmail := directory.NormalizeEmail(userInfo.Email)
+	user, err := s.userRepo.GetUserByEmail(ctx, userInfo.Email)
+	if err != nil && !isUserLookupNotFound(err) {
+		return nil, false, fmt.Errorf("failed to query user by email: %w", err)
+	}
+	if isUserLookupNotFound(err) || user == nil {
+		if s.directoryRepo != nil {
+			aliasID, aerr := s.directoryRepo.GetUserIDByEmailAlias(ctx, normalizedEmail)
+			if aerr != nil {
+				return nil, false, aerr
+			}
+			if aliasID != "" {
+				user, err = s.userRepo.GetUserByID(ctx, aliasID)
+				if err != nil {
+					return nil, false, err
+				}
+				return user, false, nil
+			}
+		}
+		if !s.oidcAutoProvisionEnabled(ctx) {
+			return nil, false, errors.New("账号尚未开通，请联系管理员")
+		}
+		user, err = s.provisionOIDCUser(ctx, userInfo, provisioning)
+		if err != nil {
+			return nil, false, err
+		}
+		return user, true, nil
+	}
+	return user, false, nil
+}
+
 func (s *userService) provisionOIDCUser(
 	ctx context.Context,
 	info *types.OIDCUserInfo,

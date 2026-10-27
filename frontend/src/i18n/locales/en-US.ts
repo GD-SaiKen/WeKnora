@@ -4949,7 +4949,11 @@ export default {
         auth: {
           registration_mode: 'Registration mode',
           default_tenant_mode: 'Default workspace provisioning',
-          complex_password_enabled: 'Require complex password'
+          complex_password_enabled: 'Require complex password',
+          oidc_auto_provision: 'Auto-provision on enterprise login'
+        },
+        identity: {
+          company_organization_id: 'Company shared space'
         },
         ssrf: {
           whitelist: 'SSRF protection allowlist'

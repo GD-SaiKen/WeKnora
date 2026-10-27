@@ -67,6 +67,7 @@ type SystemHandler struct {
 	sandboxConfigSvc   sandboxConfigService
 	// startup snapshot for GET /system/capabilities; bound in router.NewRouter.
 	deploymentCapabilities DeploymentCapabilitiesData
+	directorySync          interfaces.DirectorySyncService
 }
 
 // NewSystemHandler creates a new system handler
@@ -83,6 +84,7 @@ func NewSystemHandler(cfg *config.Config,
 	knowledgeSvc interfaces.KnowledgeService,
 	storageBackendRepo interfaces.StorageBackendRepository,
 	sandboxConfigSvc *service.TenantSandboxConfigService,
+	directorySync interfaces.DirectorySyncService,
 ) *SystemHandler {
 	return &SystemHandler{
 		cfg:                cfg,
@@ -98,6 +100,7 @@ func NewSystemHandler(cfg *config.Config,
 		knowledgeSvc:       knowledgeSvc,
 		storageBackendRepo: storageBackendRepo,
 		sandboxConfigSvc:   sandboxConfigSvc,
+		directorySync:      directorySync,
 	}
 }
 
