@@ -191,9 +191,9 @@
           <div class="form-content">
             <t-form ref="formRef" :data="formData" :rules="formRules" @submit="handleLogin" layout="vertical"
               label-align="top">
-              <t-form-item :label="$t('auth.email')" name="email">
-                <t-input v-model="formData.email" :placeholder="$t('auth.emailPlaceholder')" type="text"
-                  autocomplete="email" size="large" :disabled="loading" />
+              <t-form-item :label="$t('auth.loginAccountLabel')" name="email">
+                <t-input v-model="formData.email" :placeholder="$t('auth.loginAccountPlaceholder')" type="text"
+                  autocomplete="username" size="large" :disabled="loading" />
               </t-form-item>
 
               <t-form-item :label="$t('auth.password')" name="password">
@@ -438,6 +438,15 @@ const oidcLoginText = computed(() => {
 })
 const currentLangOption = computed(() => languageOptions.find(l => l.value === currentLanguage.value))
 
+const loginAccountPattern = /^1\d{10}$/
+const loginEmailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+function isLoginAccountValid(value: string): boolean {
+  const trimmed = String(value ?? '').trim()
+  if (!trimmed) return false
+  return loginAccountPattern.test(trimmed) || loginEmailPattern.test(trimmed)
+}
+
 // Login form data
 const formData = reactive<{ [key: string]: any }>({
   email: '',
@@ -455,8 +464,12 @@ const registerData = reactive<{ [key: string]: any }>({
 // Login form validation rules
 const formRules = computed(() => ({
   email: [
-    { required: true, message: t('auth.emailRequired'), type: 'error' },
-    { email: true, message: t('auth.emailInvalid'), type: 'error' }
+    { required: true, message: t('auth.loginAccountRequired'), type: 'error' },
+    {
+      validator: (value: string) => isLoginAccountValid(value),
+      message: t('auth.loginAccountInvalid'),
+      type: 'error',
+    },
   ],
   password: [
     { required: true, message: t('auth.passwordRequired'), type: 'error' },
