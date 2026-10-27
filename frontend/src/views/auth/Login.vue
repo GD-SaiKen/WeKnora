@@ -145,16 +145,6 @@
     <!-- Left Showcase Section -->
     <div class="showcase-section">
       <div class="showcase-content">
-        <p class="showcase-subtitle">{{ $t('platform.subtitle') }}</p>
-        <p class="showcase-description">{{ $t('platform.description') }}</p>
-
-        <div class="feature-tags">
-          <span class="tag">{{ $t('platform.rag') }}</span>
-          <span class="tag">{{ $t('platform.agent') }}</span>
-          <span class="tag">{{ $t('platform.wiki') }}</span>
-          <span class="tag">{{ $t('platform.hybridSearch') }}</span>
-        </div>
-
         <!-- Swiper Carousel -->
         <div class="carousel-container">
           <swiper :modules="modules" :slides-per-view="1" :loop="true" :autoplay="{
@@ -1076,46 +1066,10 @@ onMounted(async () => {
   margin-bottom: 60px;
 }
 
-.showcase-subtitle {
-  margin-top: 0;
-  font-size: 22px;
-  color: rgba(255, 255, 255, 0.95);
-  margin: 0 0 8px 0;
-  font-family: var(--app-font-family);
-  line-height: 1.4;
-  font-weight: 500;
-}
-
-.showcase-description {
-  font-size: var(--app-text-lg);
-  color: rgba(255, 255, 255, 0.8);
-  margin: 0 0 28px 0;
-  font-family: var(--app-font-family);
-  line-height: 1.5;
-}
-
-.feature-tags {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 40px;
-  flex-wrap: wrap;
-}
-
-.tag {
-  display: inline-block;
-  padding: 8px 20px;
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 20px;
-  color: var(--td-text-color-anti);
-  font-size: var(--app-text-base);
-  font-weight: 500;
-  font-family: var(--app-font-family);
-}
-
 /* Carousel */
 .carousel-container {
   width: 100%;
-  margin-top: 48px;
+  margin-top: 0;
 }
 
 .screenshot-swiper {
@@ -1638,10 +1592,6 @@ onMounted(async () => {
     display: none;
   }
 
-  .showcase-subtitle {
-    font-size: var(--app-text-2xl);
-  }
-
   .header-logo {
     top: 26px;
     left: 40px;
@@ -1699,19 +1649,6 @@ onMounted(async () => {
     }
   }
 
-  .showcase-subtitle {
-    font-size: var(--app-text-xl);
-    margin-bottom: 24px;
-  }
-
-  .feature-tags {
-    margin-bottom: 24px;
-  }
-
-  .carousel-container {
-    margin-top: 24px;
-  }
-
   .form-section {
     flex: 0 0 auto;
     padding: 24px;
@@ -1757,15 +1694,6 @@ onMounted(async () => {
     .logo-image {
       width: 70px;
     }
-  }
-
-  .showcase-subtitle {
-    font-size: var(--app-text-base);
-  }
-
-  .tag {
-    font-size: var(--app-text-sm);
-    padding: 6px 16px;
   }
 
   .form-section {
