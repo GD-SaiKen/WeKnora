@@ -460,7 +460,7 @@ start_app() {
     
     log_info "加载环境配置..."
     if ! load_env_files; then
-        log_error ".env 文件不存在，请先创建配置文件"
+        log_error "无法加载环境配置（请确认项目根目录存在 .env，且用 bash 运行本脚本：bash ./scripts/dev.sh app）"
         return 1
     fi
     

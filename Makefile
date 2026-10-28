@@ -361,23 +361,32 @@ show-platform:
 	@echo "Docker构建平台: $(PLATFORM)"
 
 # Development mode commands
+# dev.sh is bash-only; Windows MinGW make runs ./scripts/*.sh with sh → "bad substitution".
+# Override: make dev-app DEV_SHELL="/c/Program Files/Git/bin/bash.exe"
+DEV_SHELL ?= bash
+
 dev-start:
-	./scripts/dev.sh start $(DEV_ARGS)
+	$(DEV_SHELL) ./scripts/dev.sh start $(DEV_ARGS)
 
 dev-stop:
-	./scripts/dev.sh stop
+	$(DEV_SHELL) ./scripts/dev.sh stop
 
 dev-restart:
-	./scripts/dev.sh restart
+	$(DEV_SHELL) ./scripts/dev.sh restart
 
 dev-logs:
-	./scripts/dev.sh logs
+	$(DEV_SHELL) ./scripts/dev.sh logs
 
 dev-status:
-	./scripts/dev.sh status
+	$(DEV_SHELL) ./scripts/dev.sh status
 
+ifeq ($(OS),Windows_NT)
 dev-app:
-	./scripts/dev.sh app
+	powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/dev-app.ps1
+else
+dev-app:
+	$(DEV_SHELL) ./scripts/dev.sh app
+endif
 
 dev-frontend:
-	./scripts/dev.sh frontend
+	$(DEV_SHELL) ./scripts/dev.sh frontend
