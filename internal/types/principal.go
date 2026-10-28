@@ -223,6 +223,8 @@ const (
 	AuthSourceAPIPlatformKey  = "api_platform_key"
 	AuthSourceAPIDirectHeader = "api_direct_header"
 	AuthSourceAPISignedToken  = "api_signed_token"
+	// User-issued bearer tokens on the fixed /mcp surface (SharedMCPAuth).
+	AuthSourceAPIKey = "shared_mcp_access"
 	AuthSourceEmbed           = "embed"
 	AuthSourceIM              = "im"
 	AuthSourceMCPEndpoint     = "mcp_endpoint"
