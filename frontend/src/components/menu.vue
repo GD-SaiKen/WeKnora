@@ -8,10 +8,8 @@
             </div>
             <div class="logo_actions">
                 <t-tooltip v-if="assistantStore.entry === 'sidebar'" :content="assistantName" placement="bottom">
-                    <div class="header-icon-btn" :class="{ 'is-active': assistantStore.visible }"
-                        :aria-label="assistantName" @click="assistantStore.toggle()">
-                        <t-icon name="compass" size="18px" />
-                    </div>
+                    <AssistantButton data-guide="assistant-entry" icon-only :icon-size="18" :label="assistantName"
+                        :active="assistantStore.visible" @click="assistantStore.toggle()" />
                 </t-tooltip>
                 <t-tooltip placement="bottom">
                     <template #content>
@@ -84,14 +82,8 @@
                     </div>
                 </t-tooltip>
                 <t-tooltip v-if="assistantStore.entry === 'sidebar'" :content="assistantName" placement="right">
-                    <div class="menu_item menu_item--cmdk" :class="{ 'menu_item_active': assistantStore.visible }"
-                        :aria-label="assistantName" @click="assistantStore.toggle()">
-                        <div class="menu_item-box">
-                            <div class="menu_icon">
-                                <t-icon name="compass" size="18px" />
-                            </div>
-                        </div>
-                    </div>
+                    <AssistantButton data-guide="assistant-entry" class="assistant-sidebar-entry" icon-only :icon-size="18"
+                        :label="assistantName" :active="assistantStore.visible" @click="assistantStore.toggle()" />
                 </t-tooltip>
             </div>
             <div class="menu_box" :class="{ 'menu_box--sticky': item.children && !uiStore.sidebarCollapsed }"
@@ -291,6 +283,7 @@ import { useOrganizationStore } from '@/stores/organization';
 import { useUIStore } from '@/stores/ui';
 import { useCommandPaletteStore } from '@/stores/commandPalette';
 import { useAssistantStore } from '@/stores/assistant';
+import AssistantButton from '@/components/assistant/AssistantButton.vue';
 import { MessagePlugin, DialogPlugin, Icon as TIcon } from "tdesign-vue-next";
 import UserMenu from '@/components/UserMenu.vue';
 import TenantSelector from '@/components/TenantSelector.vue';
@@ -1393,8 +1386,10 @@ const resizeSidebar = (delta: number, keyboard: boolean) => {
         overflow: hidden;
 
         .logo {
-            width: 108px;
-            height: auto;
+            // Square brand mark (was a 400x126 wordmark): scale by height so it
+            // fits the 50px logo row instead of overflowing it.
+            height: 32px;
+            width: auto;
         }
 
         .lite-badge {
@@ -1841,6 +1836,13 @@ const resizeSidebar = (delta: number, keyboard: boolean) => {
     flex-shrink: 0;
 }
 
+.aside_box--collapsed .assistant-sidebar-entry {
+    display: flex;
+    width: 32px;
+    height: 32px;
+    margin: 0 auto 6px;
+}
+
 .header-icon-btn {
     display: flex;
     align-items: center;
@@ -2002,9 +2004,10 @@ const resizeSidebar = (delta: number, keyboard: boolean) => {
 }
 </style>
 <style lang="less">
-// Dark mode: invert dark logo to light
+// Dark mode: the mark is a saturated blue on transparency, so lift its
+// lightness instead of inverting (invert would wash the brand hue out).
 html[theme-mode="dark"] .aside_box .logo_box .logo {
-    filter: invert(1) hue-rotate(180deg);
+    filter: brightness(1.35) saturate(1.15);
 }
 
 // Dark mode: 滚动条在深色背景下需要更亮的颜色才看得见

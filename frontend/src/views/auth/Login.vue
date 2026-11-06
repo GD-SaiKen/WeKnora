@@ -1162,8 +1162,9 @@ onMounted(async () => {
   cursor: pointer;
 
   .logo-image {
-    width: 120px;
-    height: auto;
+    // Square brand mark: height-driven so the row height stays as before.
+    height: 38px;
+    width: auto;
   }
 }
 
@@ -1610,7 +1611,7 @@ onMounted(async () => {
     left: 40px;
 
     .logo-image {
-      width: 100px;
+      height: 32px;
     }
   }
 
@@ -1633,6 +1634,8 @@ onMounted(async () => {
 @media (max-width: 768px) {
   .login-layout {
     flex-direction: column;
+    padding-top: 64px;
+    box-sizing: border-box;
   }
 
   .knowledge-node:nth-of-type(n + 9) {
@@ -1658,11 +1661,12 @@ onMounted(async () => {
     left: 30px;
 
     .logo-image {
-      width: 80px;
+      height: 25px;
     }
   }
 
   .form-section {
+    order: -1;
     flex: 0 0 auto;
     padding: 24px;
   }
@@ -1705,7 +1709,7 @@ onMounted(async () => {
     left: 20px;
 
     .logo-image {
-      width: 70px;
+      height: 22px;
     }
   }
 
@@ -1718,6 +1722,10 @@ onMounted(async () => {
     right: 14px;
     gap: 6px;
     flex-wrap: wrap;
+
+    .link-text {
+      display: none;
+    }
 
     .header-link {
       padding: 7px 10px;
@@ -1765,7 +1773,8 @@ html[theme-mode="dark"] {
   }
 
   .header-logo .logo-image {
-    filter: invert(1) hue-rotate(180deg) brightness(1.1);
+    // Blue mark on the dark green gradient: brighten, don't invert.
+    filter: brightness(1.5) saturate(1.1);
   }
 
   .header-link {
