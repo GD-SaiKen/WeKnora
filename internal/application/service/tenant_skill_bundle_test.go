@@ -8,6 +8,7 @@ import (
 	"hash/crc32"
 	"io"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -492,6 +493,128 @@ Use the scripts in this skill.
 		b, err := ParseSkillBundle(data)
 		require.NoError(t, err)
 		require.Equal(t, a.SHA256, b.SHA256)
+	})
+}
+
+// TestParseSkillBundleRejectionHints covers the actionable half of a
+// rejection: an operator who sees only "SKILL.md is missing" has to guess
+// between a case mistake, a GitHub zipball, Windows separators and a genuinely
+// missing manifest, and each has a different fix.
+func TestParseSkillBundleRejectionHints(t *testing.T) {
+	t.Run("names a case-mismatched manifest", func(t *testing.T) {
+		_, err := ParseSkillBundle(zipBundle(t, map[string]string{"skill.md": validSkillMD}))
+
+		require.ErrorIs(t, err, ErrSkillBundleInvalid)
+		require.ErrorContains(t, err, "SKILL.md is missing")
+		require.ErrorContains(t, err, `"skill.md"`)
+		require.ErrorContains(t, err, "case-sensitive")
+	})
+
+	t.Run("names a manifest nested too deep", func(t *testing.T) {
+		_, err := ParseSkillBundle(zipBundle(t, map[string]string{
+			"repo-main/skills/pdf/SKILL.md": validSkillMD,
+			"repo-main/skills/pdf/run.py":   "print(1)\n",
+		}))
+
+		require.ErrorIs(t, err, ErrSkillBundleInvalid)
+		require.ErrorContains(t, err, "3 directories deep")
+		require.ErrorContains(t, err, `"repo-main/skills/pdf/SKILL.md"`)
+		require.ErrorContains(t, err, `top-level entries: "repo-main/"`)
+	})
+
+	t.Run("spotlights a whole-repository archive holding several skills", func(t *testing.T) {
+		_, err := ParseSkillBundle(zipBundle(t, map[string]string{
+			"README.md":             "install me",
+			"install.sh":            "echo hi",
+			"skills/alpha/SKILL.md": validSkillMD,
+			"skills/beta/SKILL.md":  validSkillMD,
+		}))
+
+		require.ErrorIs(t, err, ErrSkillBundleInvalid)
+		require.ErrorContains(t, err, "holds 2 skills")
+		require.ErrorContains(t, err, `"skills/alpha"`)
+		require.ErrorContains(t, err, `"skills/beta"`)
+		require.NotContains(t, err.Error(), "directories deep",
+			"depth advice misleads when the archive is a whole repository")
+		require.Less(t, len(err.Error()), 300)
+	})
+
+	t.Run("lists uploadable skills before vendored sub-skills", func(t *testing.T) {
+		_, err := ParseSkillBundle(zipBundle(t, map[string]string{
+			"skills/alpha/SKILL.md":                 validSkillMD,
+			"skills/alpha/bundled/toolkit/SKILL.md": validSkillMD,
+			"skills/beta/SKILL.md":                  validSkillMD,
+		}))
+
+		require.ErrorIs(t, err, ErrSkillBundleInvalid)
+		require.ErrorContains(t, err, "holds 3 skills")
+		require.ErrorContains(t, err, `"skills/alpha"`)
+		require.ErrorContains(t, err, `"skills/beta"`)
+		require.NotContains(t, err.Error(), "bundled/toolkit",
+			"a vendored sub-skill must not crowd out an uploadable one")
+	})
+
+	t.Run("spotlights Windows backslash separators", func(t *testing.T) {
+		_, err := ParseSkillBundle(zipBundle(t, map[string]string{
+			`pdf-tools\SKILL.md`: validSkillMD,
+		}))
+
+		require.ErrorIs(t, err, ErrSkillBundleInvalid)
+		require.ErrorContains(t, err, "backslash")
+	})
+
+	t.Run("lists top-level entries when there is no manifest", func(t *testing.T) {
+		_, err := ParseSkillBundle(zipBundle(t, map[string]string{
+			"a.txt":     "x",
+			"docs/b.md": "y",
+		}))
+
+		require.ErrorIs(t, err, ErrSkillBundleInvalid)
+		require.ErrorContains(t, err, "top-level entries:")
+		require.ErrorContains(t, err, `"a.txt"`)
+		require.ErrorContains(t, err, `"docs/"`)
+	})
+
+	t.Run("names the stray files outside the skill directory", func(t *testing.T) {
+		_, err := ParseSkillBundle(zipBundle(t, map[string]string{
+			"pdf-tools/SKILL.md": validSkillMD,
+			"README.md":          "left over from the zip root",
+		}))
+
+		require.ErrorIs(t, err, ErrSkillBundleInvalid)
+		require.ErrorContains(t, err, "outside the skill directory")
+		require.ErrorContains(t, err, "files outside:")
+		require.ErrorContains(t, err, `"README.md"`)
+	})
+
+	t.Run("names both skills when an archive holds two", func(t *testing.T) {
+		_, err := ParseSkillBundle(zipBundle(t, map[string]string{
+			"alpha/SKILL.md": validSkillMD,
+			"beta/SKILL.md":  validSkillMD,
+		}))
+
+		require.ErrorIs(t, err, ErrSkillBundleInvalid)
+		require.ErrorContains(t, err, "more than one skill")
+		require.ErrorContains(t, err, `"alpha"`)
+		require.ErrorContains(t, err, `"beta"`)
+	})
+
+	t.Run("keeps a crafted entry name on one line", func(t *testing.T) {
+		_, err := ParseSkillBundle(zipBundle(t, map[string]string{
+			"a\nb.txt": "x",
+		}))
+
+		require.ErrorIs(t, err, ErrSkillBundleInvalid)
+		require.NotContains(t, err.Error(), "\n",
+			"a control character in a zip entry must not break the log line")
+	})
+
+	t.Run("bounds how much of a long path the message quotes", func(t *testing.T) {
+		long := strings.Repeat("x", 500) + ".txt"
+		_, err := ParseSkillBundle(zipBundle(t, map[string]string{long: "x"}))
+
+		require.ErrorIs(t, err, ErrSkillBundleInvalid)
+		require.Less(t, len(err.Error()), 400)
 	})
 }
 

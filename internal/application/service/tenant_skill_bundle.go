@@ -172,8 +172,8 @@ func skillZipEntries(archive []byte, opts SkillBundleParseOptions) ([]skillZipEn
 			if opts.AllowExtraFiles {
 				continue
 			}
-			return nil, fmt.Errorf("%w: archive holds files outside the skill directory %q",
-				ErrSkillBundleInvalid, prefix)
+			return nil, fmt.Errorf("%w: archive holds files outside the skill directory %q (%s)",
+				ErrSkillBundleInvalid, prefix, straySkillFilesHint(names, prefix))
 		}
 		if err := inspectKeptSkillZipEntry(item); err != nil {
 			return nil, err
@@ -443,8 +443,8 @@ func stripSkillRootPrefix(raw map[string][]byte, opts SkillBundleParseOptions) (
 			if opts.AllowExtraFiles {
 				continue
 			}
-			return nil, fmt.Errorf("%w: archive holds files outside the skill directory %q",
-				ErrSkillBundleInvalid, prefix)
+			return nil, fmt.Errorf("%w: archive holds files outside the skill directory %q (%s)",
+				ErrSkillBundleInvalid, prefix, straySkillFilesHint(raw, prefix))
 		}
 		out[strings.TrimPrefix(name, prefix+"/")] = content
 	}
@@ -488,13 +488,16 @@ func skillRootPrefix(raw map[string][]byte, opts SkillBundleParseOptions) (strin
 	}
 	if len(matches) == 0 {
 		if subdir != "" {
-			return "", fmt.Errorf("%w: SKILL.md is missing under %q", ErrSkillBundleInvalid, subdir)
+			return "", fmt.Errorf("%w: SKILL.md is missing under %q (%s)",
+				ErrSkillBundleInvalid, subdir, skillRootHint(raw))
 		}
-		return "", fmt.Errorf("%w: SKILL.md is missing", ErrSkillBundleInvalid)
+		return "", fmt.Errorf("%w: SKILL.md is missing (%s)", ErrSkillBundleInvalid, skillRootHint(raw))
 	}
 	uniq := uniqueStrings(matches)
 	if len(uniq) > 1 {
-		return "", fmt.Errorf("%w: archive holds more than one skill", ErrSkillBundleInvalid)
+		sort.Strings(uniq)
+		return "", fmt.Errorf("%w: archive holds more than one skill (%s); upload a bundle with a single SKILL.md",
+			ErrSkillBundleInvalid, quoteSkillPaths(uniq))
 	}
 	return uniq[0], nil
 }
@@ -510,4 +513,197 @@ func uniqueStrings(in []string) []string {
 		out = append(out, v)
 	}
 	return out
+}
+
+const (
+	// maxSkillHintPaths caps how many archive paths a rejection quotes. The
+	// message is surfaced verbatim in the UI toast and the API body, so it has
+	// to stay readable.
+	maxSkillHintPaths = 4
+	// maxSkillHintRunes caps one quoted path so a hostile archive cannot
+	// inflate the error body with a megabyte-long filename.
+	maxSkillHintRunes = 64
+)
+
+// skillRootHint explains why no skill root was found, using what the archive
+// actually holds. "SKILL.md is missing" on its own sends the uploader hunting
+// for the cause; in practice it is one of four things and each has a different
+// fix: a case-mismatched manifest, a manifest buried deeper than the one
+// wrapper directory the upload path allows (GitHub "Download ZIP" and whole-repo
+// archives), Windows backslash separators, or no manifest at all.
+func skillRootHint(raw map[string][]byte) string {
+	names := sortedSkillNames(raw)
+	if len(names) == 0 {
+		return "the archive contains no files"
+	}
+
+	var (
+		caseMismatch []string
+		manifests    []string // exact SKILL.md, too deep to be a skill root
+		backslash    bool
+	)
+	for _, name := range names {
+		if strings.ContainsRune(name, '\\') {
+			backslash = true
+		}
+		segments := strings.Split(strings.ReplaceAll(name, "\\", "/"), "/")
+		base := segments[len(segments)-1]
+		if !strings.EqualFold(base, "SKILL.md") {
+			continue
+		}
+		if base != "SKILL.md" {
+			caseMismatch = append(caseMismatch, name)
+			continue
+		}
+		if len(segments) > 2 {
+			manifests = append(manifests, name)
+		}
+	}
+
+	var hints []string
+	listSkills := true
+	switch {
+	case len(manifests) > 1:
+		// Whole-repository archives (GitHub "Download ZIP", shipped install
+		// scripts, skills/<name>/...) hold several skills. Depth advice would
+		// mislead here: the fix is to upload them one at a time.
+		dirs, extra := capSkillPaths(skillManifestDirs(manifests), 2)
+		detail := quoteSkillPaths(dirs)
+		if extra > 0 {
+			detail += fmt.Sprintf(" (+%d more)", extra)
+		}
+		hints = append(hints, fmt.Sprintf(
+			"the archive holds %d skills %s; upload one skill at a time, zipping that skill's own directory so SKILL.md lands at the zip root",
+			len(manifests), detail))
+		listSkills = false
+	case len(manifests) == 1:
+		depth := strings.Count(strings.ReplaceAll(manifests[0], "\\", "/"), "/")
+		hints = append(hints, fmt.Sprintf(
+			"the manifest sits %d directories deep at %s; zip that skill's directory so SKILL.md lands at the zip root (or keep exactly one wrapper directory)",
+			depth, quoteSkillPaths(manifests)))
+	case len(caseMismatch) > 0:
+		hints = append(hints, fmt.Sprintf(
+			"the manifest is named %s; the file name SKILL.md is case-sensitive",
+			quoteSkillPaths(caseMismatch)))
+	case backslash:
+		hints = append(hints, "entry names use Windows backslash separators, which this parser does not treat as separators; re-zip with a tool that writes '/', such as 7-Zip, macOS Finder or the zip CLI")
+	}
+	if listSkills {
+		tops, extraTops := topLevelSkillNames(names)
+		topHint := "top-level entries: " + quoteSkillPaths(tops)
+		if extraTops > 0 {
+			topHint += fmt.Sprintf(" (+%d more)", extraTops)
+		}
+		hints = append(hints, topHint)
+	}
+	return strings.Join(hints, "; ")
+}
+
+// skillManifestDirs maps SKILL.md paths to the directory that holds them.
+func skillManifestDirs(manifests []string) []string {
+	dirs := make([]string, 0, len(manifests))
+	for _, manifest := range manifests {
+		dir := strings.ReplaceAll(manifest, "\\", "/")
+		if idx := strings.LastIndex(dir, "/"); idx >= 0 {
+			dir = dir[:idx]
+		}
+		dirs = append(dirs, dir)
+	}
+	// Shallowest first: the top-level skills are the ones an operator can zip
+	// and upload, while a vendored sub-skill only shows up behind its parent.
+	sort.Slice(dirs, func(i, j int) bool {
+		di, dj := strings.Count(dirs[i], "/"), strings.Count(dirs[j], "/")
+		if di != dj {
+			return di < dj
+		}
+		return dirs[i] < dirs[j]
+	})
+	return dirs
+}
+
+func capSkillPaths(paths []string, limit int) (shown []string, extra int) {
+	if len(paths) <= limit {
+		return paths, 0
+	}
+	return paths[:limit], len(paths) - limit
+}
+
+// straySkillFilesHint names the files sitting next to the wrapped skill
+// directory. In practice those are __MACOSX/ metadata, a repository
+// README/LICENSE, or a second level of wrapping.
+func straySkillFilesHint(names map[string][]byte, prefix string) string {
+	stray := make([]string, 0, maxSkillHintPaths)
+	for _, name := range sortedSkillNames(names) {
+		if strings.HasPrefix(name, prefix+"/") {
+			continue
+		}
+		stray = append(stray, name)
+		if len(stray) == maxSkillHintPaths {
+			break
+		}
+	}
+	if len(stray) == 0 {
+		return "no files are actually outside it"
+	}
+	return "files outside: " + quoteSkillPaths(stray) +
+		"; remove them, or restructure so the skill is the only top-level directory"
+}
+
+func sortedSkillNames(names map[string][]byte) []string {
+	sorted := make([]string, 0, len(names))
+	for name := range names {
+		sorted = append(sorted, name)
+	}
+	sort.Strings(sorted)
+	return sorted
+}
+
+// topLevelSkillNames reports the archive's top-level entries: the fastest way
+// for an operator to spot a GitHub zipball ("repo-main/") where a flat bundle
+// was expected.
+func topLevelSkillNames(names []string) (tops []string, extra int) {
+	seen := make(map[string]struct{}, len(names))
+	tops = make([]string, 0, maxSkillHintPaths+1)
+	for _, name := range names {
+		flat := strings.ReplaceAll(name, "\\", "/")
+		if idx := strings.Index(flat, "/"); idx >= 0 {
+			flat = flat[:idx] + "/"
+		}
+		if _, ok := seen[flat]; ok {
+			continue
+		}
+		seen[flat] = struct{}{}
+		tops = append(tops, flat)
+	}
+	sort.Strings(tops)
+	if len(tops) > maxSkillHintPaths {
+		extra = len(tops) - maxSkillHintPaths
+		tops = tops[:maxSkillHintPaths]
+	}
+	return tops, extra
+}
+
+// quoteSkillPaths renders paths for an error body: %q-escaped so a name with
+// quotes or spaces stays unambiguous, control characters stripped so a crafted
+// entry name cannot forge a second log line, and each path truncated so the
+// archive cannot inflate the message.
+func quoteSkillPaths(names []string) string {
+	quoted := make([]string, 0, len(names))
+	for _, name := range names {
+		quoted = append(quoted, quoteSkillPath(name))
+	}
+	return strings.Join(quoted, ", ")
+}
+
+func quoteSkillPath(name string) string {
+	cleaned := strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return -1
+		}
+		return r
+	}, name)
+	if runes := []rune(cleaned); len(runes) > maxSkillHintRunes {
+		cleaned = string(runes[:maxSkillHintRunes]) + "\u2026"
+	}
+	return fmt.Sprintf("%q", cleaned)
 }
