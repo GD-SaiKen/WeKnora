@@ -92,6 +92,12 @@ check_whitespace() {
 check_gofmt_files() {
   local mode="$1" # check | write
   shift
+  # fork-local: 开发机可能没有 Go 工具链（构建走 Docker）。缺 gofmt 时跳过，
+  # 避免 pre-commit 在纯文档/脚本提交时也失败。
+  if ! command -v gofmt >/dev/null 2>&1; then
+    log_step "gofmt not installed; skip (install Go to enable)"
+    return 0
+  fi
   local -a files=("$@")
   if [[ ${#files[@]} -gt 0 ]]; then
     local -a existing=()

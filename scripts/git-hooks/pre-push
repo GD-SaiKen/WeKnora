@@ -57,7 +57,12 @@ while read -r _local_ref local_sha remote_ref remote_sha; do
     [[ -n "$line" ]] && pr_changed_go+=("$line")
   done < <(git diff --name-only --diff-filter=ACMR "$pr_diff" -- '*.go' ':!cli/**' || true)
 
-  if [[ ${#pr_changed_go[@]} -gt 0 ]]; then
+  # fork-local: 本仓库的开发机用 Docker 构建镜像，本机可能没有 Go 工具链。
+  # 没有 go 时跳过 gofmt/vet/test/build，而不是让推送直接失败；
+  # 装了 Go 的机器走下面完全相同的 CI 对齐检查。
+  if [[ ${#pr_changed_go[@]} -gt 0 ]] && ! command -v go >/dev/null 2>&1; then
+    log_step "go toolchain not installed; skip gofmt/vet/test/build (install Go to enable)"
+  elif [[ ${#pr_changed_go[@]} -gt 0 ]]; then
     go_files=()
     for f in "${pr_changed_go[@]}"; do
       go_files+=("$ROOT/$f")

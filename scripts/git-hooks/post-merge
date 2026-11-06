@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# 合并/拉取后自检：同步上游最容易在这里引入重复的迁移版本号。
+#
+# 为什么挂在 post-merge：跟上游同步的入口就是 git merge / git pull，
+# 而 golang-migrate 遇到同号目录会拒绝加载（duplicate migration file），
+# 纯文本合并却完全不报冲突 —— 问题只会在部署时以「应用起不来」的形式暴露。
+# 这里提前喊出来，把发现时机从部署前移到合并后。
+#
+# 注意：post-* 钩子无法阻止合并完成，只做告警，返回码不影响 git。
+# 这个钩子是 fork 新增的（上游 scripts/git-hooks/ 里没有 post-merge），
+# 因此合上游时不会与上游文件冲突。
+set -uo pipefail
+
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+# shellcheck source=scripts/git-hooks/common.sh
+source "$ROOT/scripts/git-hooks/common.sh"
+
+if hook_skip; then
+  exit 0
+fi
+
+cd "$ROOT"
+
+# 只有合并进来的提交可能带来新的迁移文件。没动 migrations/ 就快速跳过，
+# 避免每次 merge 都去拉镜像/跑测试。
+if ! git diff --name-only ORIG_HEAD HEAD 2>/dev/null | grep -q '^migrations/'; then
+  exit 0
+fi
+
+log_step "post-merge: migrations/ 有变动，检查版本号是否重复"
+
+if "$ROOT/scripts/check-migrations.sh"; then
+  log_ok "post-merge: 迁移目录可正常加载"
+  exit 0
+fi
+
+cat >&2 <<'EOF'
+
+⚠️  这次合并引入了重复的迁移版本号 —— 部署时应用会启动失败。
+
+    这不会阻止本次合并，但在修好之前不要发版。
+    按上面提示把 fork 自己的迁移顺延到上游最高版本之后，
+    然后重新运行: scripts/check-migrations.sh
+EOF
+
+exit 0
