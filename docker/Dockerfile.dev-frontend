@@ -1,0 +1,16 @@
+# Dev image: Node + deps layer; Vue source bind-mounted at runtime for Vite HMR.
+FROM node:24-bookworm-slim@sha256:ba849c60be29959425b8734d57b8b4b7d56f98edd9504c9af091d5281095a71e
+
+ARG NPM_REGISTRY=
+WORKDIR /app/frontend
+
+RUN if [ -n "$NPM_REGISTRY" ]; then npm config set registry "$NPM_REGISTRY"; fi
+
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+
+COPY docker/scripts/dev-frontend-entrypoint.sh /usr/local/bin/dev-frontend-entrypoint.sh
+RUN chmod +x /usr/local/bin/dev-frontend-entrypoint.sh
+
+EXPOSE 5173
+ENTRYPOINT ["dev-frontend-entrypoint.sh"]

@@ -1,0 +1,132 @@
+# 全栈 Docker 开发：基础设施（同 docker-compose.dev.yml）+ 后端 Air 热重载 + 前端 Vite HMR
+#
+# 启动（Windows）:
+#   pnpm run dev:docker
+# 与 docker-compose.dev.yml 一起使用（见 scripts/dev-docker-hot.*）:
+#   docker compose -f docker-compose.dev.yml -f docker-compose.dev-hot.yml up --build -d
+# 需要 Langfuse 观测时追加 --profile langfuse
+#
+# 访问:
+#   前端 http://localhost:5174  （API 代理到容器内 app-dev:8080；5173 常被
+#                                本机其他 vite 占用，可用 FRONTEND_DEV_PORT 覆盖）
+#   后端 http://localhost:8080
+#   docreader gRPC localhost:50051（Python 源码变更由 watchfiles 自动重启）
+#   postgres/redis 宿主机端口 15432/16379（避开 SSH 隧道的 5432/6379；
+#   容器内互连仍是 5432/6379，凭据与 compose 内服务同源）
+#
+# 生产全量打包仍用根目录 docker-compose.yml:
+#   docker compose up -d --build
+
+services:
+  # 热更新栈使用 docreader-dev；不启动 compose.dev 里预构建的 docreader 以免占 50051。
+  docreader:
+    profiles:
+      - bundled-docreader
+
+  docreader-dev:
+    extends:
+      file: docker-compose.dev.yml
+      service: docreader
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.dev-docreader
+      args:
+        DOCREADER_BASE_IMAGE: wechatopenai/weknora-docreader:${WEKNORA_VERSION:-latest}
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-}
+    image: weknora-docreader-dev-hot:local
+    container_name: WeKnora-docreader-dev-hot
+    volumes:
+      - ./docreader:/app/docreader
+      - docreader-tmp-dev-hot:/tmp/docreader
+    environment:
+      WATCHFILES_FORCE_POLLING: ${CHOKIDAR_USEPOLLING:-true}
+    networks:
+      - WeKnora-network-dev
+
+  app-dev:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.dev-app
+      args:
+        APK_MIRROR_ARG: ${APK_MIRROR_ARG:-}
+        GOPROXY_ARG: ${GOPROXY:-https://proxy.golang.org,direct}
+    image: weknora-app-dev-hot:local
+    container_name: WeKnora-app-dev-hot
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    env_file:
+      - .env
+    environment:
+      GIN_MODE: debug
+      LOG_LEVEL: ${LOG_LEVEL:-debug}
+      # 连接变量统一钉到 compose 插值值（与 postgres/redis/docreader-dev 服务同源），
+      # 避免 .env.local（本机隧道开发覆盖，如 DB_HOST=127.0.0.1 / 不同密码）泄漏进容器。
+      DB_DRIVER: postgres
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME:-WeKnora}
+      REDIS_ADDR: redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_DB: ${REDIS_DB:-0}
+      REDIS_PREFIX: ${REDIS_PREFIX:-stream:}
+      DOCREADER_ADDR: docreader-dev:50051
+      DOCREADER_TRANSPORT: grpc
+      STORAGE_TYPE: local
+      LOCAL_STORAGE_BASE_DIR: /data/files
+      AUTO_MIGRATE: ${AUTO_MIGRATE:-true}
+      LANGFUSE_ENABLED: ${LANGFUSE_ENABLED:-false}
+      # dsh-work 集成（.env.local 提供，经脚本导入进程环境后插值传入）
+      DSH_WORK_INTEGRATION_SECRET: ${DSH_WORK_INTEGRATION_SECRET:-}
+      DSH_WORK_BIND_REDIRECT_ALLOWLIST: ${DSH_WORK_BIND_REDIRECT_ALLOWLIST:-}
+      # dsh-work 绑定流程需要 8080 能出登录页（frontend 容器构建的产物，经仓库挂载可见）
+      WEKNORA_WEB_DIR: ${WEKNORA_WEB_DIR:-/app/frontend/dist}
+    volumes:
+      - .:/app
+      - go-mod-cache:/go/pkg/mod
+      - go-build-cache:/root/.cache/go-build
+      - app-data-dev-hot:/data/files
+      - ./config/config.yaml:/app/config/config.yaml
+    networks:
+      - WeKnora-network-dev
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      docreader-dev:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+  frontend-dev:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.dev-frontend
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-}
+    image: weknora-frontend-dev-hot:local
+    container_name: WeKnora-frontend-dev-hot
+    ports:
+      - "${FRONTEND_DEV_PORT:-5173}:5173"
+    environment:
+      VITE_DEV_PROXY_TARGET: http://app-dev:8080
+      CHOKIDAR_USEPOLLING: ${CHOKIDAR_USEPOLLING:-true}
+      WATCHPACK_POLLING: ${WATCHPACK_POLLING:-true}
+    volumes:
+      - ./frontend:/app/frontend
+      - frontend-node-modules-dev-hot:/app/frontend/node_modules
+    networks:
+      - WeKnora-network-dev
+    depends_on:
+      - app-dev
+    restart: unless-stopped
+
+volumes:
+  go-mod-cache:
+  go-build-cache:
+  app-data-dev-hot:
+  frontend-node-modules-dev-hot:
+  docreader-tmp-dev-hot:

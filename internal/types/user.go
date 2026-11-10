@@ -271,6 +271,9 @@ type LoginResponse struct {
 	Memberships  []Membership `json:"memberships"`
 	Token        string       `json:"token,omitempty"`
 	RefreshToken string       `json:"refresh_token,omitempty"`
+	// BindRedirectURL is set when the user completes WeKnora login during a
+	// dsh-work knowledge-base account bind; the browser should navigate here.
+	BindRedirectURL string `json:"bind_redirect_url,omitempty"`
 }
 
 // RegisterResponse represents a registration response

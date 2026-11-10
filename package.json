@@ -6,6 +6,12 @@
     "dev:app": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/dev-app.ps1",
     "dev:web": "pnpm --dir frontend run dev",
     "setup:cgo": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/setup-windows-cgo.ps1",
-    "dev:app:docker": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/dev-app-docker.ps1"
+    "dev:app:docker": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/dev-app-docker.ps1",
+    "dev:docker": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/dev-docker-hot.ps1 up",
+    "dev:docker:down": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/dev-docker-hot.ps1 down",
+    "dev:docker:logs": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/dev-docker-hot.ps1 logs",
+    "docker:prod": "docker compose up -d --build",
+    "docker:prod:down": "docker compose down",
+    "build:app:dsh-local": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/build-app-dsh-local.ps1"
   }
 }

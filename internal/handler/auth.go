@@ -17,6 +17,7 @@ import (
 	"github.com/Tencent/WeKnora/internal/config"
 	"github.com/Tencent/WeKnora/internal/errors"
 	"github.com/Tencent/WeKnora/internal/handler/dto"
+	"github.com/Tencent/WeKnora/internal/integration/dshwork"
 	"github.com/Tencent/WeKnora/internal/logger"
 	"github.com/Tencent/WeKnora/internal/types"
 	"github.com/Tencent/WeKnora/internal/types/interfaces"
@@ -281,6 +282,10 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	// Call service to authenticate user
 	response, err := h.userService.Login(ctx, &req)
 	if err != nil {
+		if redirectURL, ok := dshwork.BindRedirectOnLoginFailure(c); ok {
+			c.Redirect(http.StatusFound, redirectURL)
+			return
+		}
 		logger.Errorf(ctx, "Failed to login user: %v", err)
 		appErr := errors.NewUnauthorizedError("Login failed").WithDetails(err.Error())
 		c.Error(appErr)
@@ -289,12 +294,21 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	// Check if login was successful
 	if !response.Success {
+		if redirectURL, ok := dshwork.BindRedirectOnLoginFailure(c); ok {
+			c.Redirect(http.StatusFound, redirectURL)
+			return
+		}
 		logger.Warnf(ctx, "Login failed: %s", response.Message)
 		c.JSON(http.StatusUnauthorized, dto.NewAuthLoginResponse(response))
 		return
 	}
 
 	// User is already in the correct format from service
+	if response.User != nil {
+		if redirectURL, ok := dshwork.BindRedirectAfterLogin(c, response.User.ID); ok {
+			response.BindRedirectURL = redirectURL
+		}
+	}
 
 	logger.Infof(ctx, "User logged in successfully, email: %s", email)
 	c.JSON(http.StatusOK, dto.NewAuthLoginResponse(response))
@@ -445,13 +459,27 @@ func (h *AuthHandler) OIDCRedirectCallback(c *gin.Context) {
 
 	resp, err := h.userService.LoginWithOIDC(ctx, code, strings.TrimSpace(decodedState.RedirectURI), h.resolveDefaultTenantMode(ctx))
 	if err != nil {
+		if redirectURL, ok := dshwork.BindRedirectOnLoginFailure(c); ok {
+			c.Redirect(http.StatusFound, redirectURL)
+			return
+		}
 		logger.Errorf(ctx, "Failed to complete OIDC login via redirect callback: %v", err)
 		c.Redirect(http.StatusFound, frontendRedirectURI+"#oidc_error="+urlQueryEscape("login_failed")+"&oidc_error_description="+urlQueryEscape(err.Error()))
 		return
 	}
 	if !resp.Success {
+		if redirectURL, ok := dshwork.BindRedirectOnLoginFailure(c); ok {
+			c.Redirect(http.StatusFound, redirectURL)
+			return
+		}
 		c.Redirect(http.StatusFound, frontendRedirectURI+"#oidc_error="+urlQueryEscape("login_failed")+"&oidc_error_description="+urlQueryEscape(resp.Message))
 		return
+	}
+	if resp.User != nil {
+		if redirectURL, ok := dshwork.BindRedirectAfterLogin(c, resp.User.ID); ok {
+			c.Redirect(http.StatusFound, redirectURL)
+			return
+		}
 	}
 
 	payload, err := encodeOIDCCallbackPayload(resp)

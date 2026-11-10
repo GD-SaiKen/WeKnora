@@ -596,6 +596,10 @@ const persistLoginResponse = async (response: any, skipRedirect = false) => {
   await authStore.refreshFromAuthMe()
   await nextTick()
   if (skipRedirect) return
+  if (response.bind_redirect_url) {
+    window.location.href = response.bind_redirect_url
+    return
+  }
   router.replace(authStore.hasValidTenant ? '/platform/knowledge-bases' : '/onboarding/workspace')
 }
 

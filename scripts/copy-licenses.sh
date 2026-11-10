@@ -16,7 +16,11 @@ bash "${license_root}/scripts/check-license-bundle.sh"
 source_stage="$(mktemp -d)"
 trap 'rm -rf "${source_stage}"' EXIT
 module_cache="$(cd "${license_root}" && go env GOMODCACHE)"
-while read -r module_name module_version _checksum; do
+while read -r module_name module_version _checksum _rest; do
+    module_name="${module_name//$'\r'/}"
+    module_version="${module_version//$'\r'/}"
+    _checksum="${_checksum//$'\r'/}"
+    [ -z "${module_name}" ] && continue
     (cd "${license_root}" && go mod download "${module_name}@${module_version}")
     cp "${module_cache}/cache/download/${module_name}/@v/${module_version}.zip" \
         "${source_stage}/${module_name##*/}-${module_version}.zip"

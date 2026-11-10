@@ -1,0 +1,49 @@
+# Air config for Docker dev (no host-specific stop hook).
+root = "."
+testdata_dir = "testdata"
+tmp_dir = "tmp"
+
+[build]
+  args_bin = []
+  bin = "./tmp/main"
+  cmd = "go build -tags \"${GO_BUILD_TAGS}\" -ldflags=\"$(./scripts/get_version.sh ldflags) -X 'google.golang.org/protobuf/reflect/protoregistry.conflictPolicy=warn'\" -o ./tmp/main ./cmd/server"
+  delay = 1000
+  exclude_dir = ["assets", "tmp", "vendor", "testdata", "frontend", "migrations", "node_modules", "docs", "logs", "data", "WeKnora-Chrome-Extension", "Formula", "dataset", "docreader", "docker", "llm_debug", "web", "mcp-server", "misc", "scripts", "dist", "client", "helm", "website-docs", ".git", ".github", ".trellis", ".local-data", ".vscode", ".idea", "licenses", "examples", "miniprogram", "tests"]
+  exclude_file = []
+  exclude_regex = ["_test.go"]
+  exclude_unchanged = false
+  follow_symlink = false
+  full_bin = ""
+  # Windows 绑定挂载不转发 inotify，只能轮询；把监视范围收窄到后端代码目录，
+  # 避免每轮全树扫描拖垮 9p I/O（go.mod 等根目录变更需重启容器后生效）。
+  include_dir = ["cmd", "internal", "config", "packages", "third_party"]
+  include_ext = ["go", "tpl", "tmpl", "html", "yaml"]
+  include_file = []
+  kill_delay = "2s"
+  log = "build-errors.log"
+  # Windows bind mounts don't forward inotify events into the VM; poll instead.
+  # Interval in ms; 5s keeps 9p scan overhead low (include_dir shrinks the tree).
+  poll = true
+  poll_interval = 5000
+  rerun = false
+  rerun_delay = 500
+  send_interrupt = false
+  stop_on_error = false
+
+[color]
+  app = ""
+  build = "yellow"
+  main = "magenta"
+  runner = "green"
+  watcher = "cyan"
+
+[log]
+  main_only = false
+  time = false
+
+[misc]
+  clean_on_exit = false
+
+[screen]
+  clear_on_rebuild = false
+  keep_scroll = true

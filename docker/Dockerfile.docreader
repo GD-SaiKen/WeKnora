@@ -168,3 +168,9 @@ EXPOSE 50051
 ENTRYPOINT ["/app/.venv/bin/python", "-m", "docreader.container_entrypoint"]
 # Dependencies are installed from uv.lock at build time; do not mutate them at boot.
 CMD ["/app/.venv/bin/python", "-m", "docreader.main"]
+
+FROM runner AS dev
+RUN /app/.venv/bin/pip install 'watchfiles>=1.0.0'
+COPY docker/scripts/dev-docreader-entrypoint.sh /usr/local/bin/dev-docreader-entrypoint.sh
+RUN chmod +x /usr/local/bin/dev-docreader-entrypoint.sh
+ENTRYPOINT ["/usr/local/bin/dev-docreader-entrypoint.sh"]

@@ -39,8 +39,27 @@ if ($qdrant -eq "127.0.0.1" -or $qdrant -eq "localhost") { $qdrant = "host.docke
 $name = "WeKnora-app-dev"
 docker rm -f $name 2>$null | Out-Null
 
+$image = if ($env:WEKNORA_DEV_APP_IMAGE) { $env:WEKNORA_DEV_APP_IMAGE } else { "wechatopenai/weknora-app:latest" }
+
+docker image inspect $image 2>$null | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    Write-Error @"
+Local Docker image not found: $image
+
+For dsh-work knowledge-base integration (token exchange API), build from this repo first:
+  pnpm run build:app:dsh-local
+  `$env:WEKNORA_DEV_APP_IMAGE = 'weknora-app-dsh-local:latest'
+  pnpm run dev:app:docker
+
+To run the published app image only (no dsh-work integration routes):
+  Remove-Item Env:WEKNORA_DEV_APP_IMAGE -ErrorAction SilentlyContinue
+  docker pull wechatopenai/weknora-app:latest
+  pnpm run dev:app:docker
+"@
+}
+
 $args = @(
-    "run", "-d", "--name", $name, "-p", "8080:8080",
+    "run", "-d", "--pull=never", "--name", $name, "-p", "8080:8080",
     "--env-file", (Join-Path $ProjectRoot ".env"),
     "-e", "DB_HOST=$hostDb",
     "-e", "DB_USER=$($env:DB_USER)",
@@ -51,9 +70,17 @@ $args = @(
     "-e", "RETRIEVE_DRIVER=$($env:RETRIEVE_DRIVER)",
     "-e", "QDRANT_HOST=$qdrant",
     "-e", "DOCREADER_ADDR=$docreader",
-    "-e", "LANGFUSE_ENABLED=false",
+    "-e", "LANGFUSE_ENABLED=false"
+)
+if ($env:DSH_WORK_INTEGRATION_SECRET) {
+    $args += @("-e", "DSH_WORK_INTEGRATION_SECRET=$($env:DSH_WORK_INTEGRATION_SECRET)")
+}
+if ($env:DSH_WORK_BIND_REDIRECT_ALLOWLIST) {
+    $args += @("-e", "DSH_WORK_BIND_REDIRECT_ALLOWLIST=$($env:DSH_WORK_BIND_REDIRECT_ALLOWLIST)")
+}
+$args += @(
     "-v", "$(Join-Path $ProjectRoot 'config\config.yaml'):/app/config/config.yaml:ro",
-    "wechatopenai/weknora-app:latest"
+    $image
 )
 
 Write-Host "[INFO] Starting container $name (API http://localhost:8080) ..."

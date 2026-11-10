@@ -59,6 +59,7 @@ var noAuthAPI = map[string][]string{
 	"/api/v1/oauth/mcp/register":        {"POST"},
 	"/api/v1/oauth/mcp/token":           {"POST"},
 	"/api/v1/auth/refresh":       {"POST"},
+	"/api/v1/integrations/dsh-work/*": {"GET", "POST"},
 	// IM platforms (Feishu, Slack, etc.) commonly issue a HEAD request
 	// before GET to validate Content-Type / Content-Length when rendering
 	// image previews — both verbs must be allowed for image links to work.

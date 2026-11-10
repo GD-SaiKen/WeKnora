@@ -45,6 +45,10 @@ type UserService interface {
 	ValidatePassword(ctx context.Context, userID string, password string) error
 	// GenerateTokens generates access and refresh tokens for user
 	GenerateTokens(ctx context.Context, user *types.User) (accessToken, refreshToken string, err error)
+	// IssueDshWorkIntegrationAccessToken mints a one-hour access token scoped to
+	// the user's home (personal) tenant for dsh-work server-to-server exchange.
+	// No refresh token is created.
+	IssueDshWorkIntegrationAccessToken(ctx context.Context, user *types.User) (accessToken string, tenantID uint64, expiresIn int, err error)
 	// BuildLoginMemberships projects the user's tenant memberships into
 	// the login-response shape. activeTenant is reused (without an extra
 	// lookup) for the matching row's TenantName. The slice is guaranteed

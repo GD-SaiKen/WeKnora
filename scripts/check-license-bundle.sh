@@ -16,11 +16,18 @@ if grep -Eq 'github.com/(longbridgeapp/opencc|liuzl/(da|cedar-go)|adamzy/cedar-g
 fi
 
 test -s licenses/sources/modules.tsv
-while read -r module_name module_version checksum; do
+while read -r module_name module_version checksum _rest; do
+    module_name="${module_name//$'\r'/}"
+    module_version="${module_version//$'\r'/}"
+    checksum="${checksum//$'\r'/}"
+    [ -z "${module_name}" ] && continue
     [[ "${checksum}" =~ ^[0-9a-f]{64}$ ]] || { echo "Invalid source checksum for ${module_name}" >&2; exit 1; }
-    actual_version="$(awk -v name="${module_name}" '$1 == name { print $2 }' go.mod)"
-    if [ "${actual_version}" != "${module_version}" ]; then
-        echo "Update the source manifest for ${module_name}: expected ${module_version}, got ${actual_version}" >&2
+    actual_version="$(go list -m -f '{{.Version}}' "${module_name}" 2>/dev/null || true)"
+    actual_version="${actual_version//$'\r'/}"
+    actual_version="${actual_version%"${actual_version##*[![:space:]]}"}"
+    module_version="${module_version%"${module_version##*[![:space:]]}"}"
+    if [ -z "${actual_version}" ] || [ "${actual_version}" != "${module_version}" ]; then
+        echo "Update the source manifest for ${module_name}: manifest ${module_version}, go.mod ${actual_version:-<missing>}" >&2
         exit 1
     fi
     if [ -n "${source_dir}" ]; then

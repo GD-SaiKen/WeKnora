@@ -1,0 +1,23 @@
+# Dev image: reuse the prebuilt docreader runtime (deps + generated pb2 baked in);
+# Python source is bind-mounted at runtime and reloaded by watchfiles.
+# See docker-compose.dev-hot.yml (docreader-dev).
+#
+# For a from-source build instead (matches uv.lock exactly), use:
+#   docker/Dockerfile.docreader target "dev"
+ARG DOCREADER_BASE_IMAGE=wechatopenai/weknora-docreader:latest
+FROM ${DOCREADER_BASE_IMAGE}
+
+ARG PIP_INDEX_URL=
+# uv-synced venvs ship without pip; bootstrap it from bundled wheels first.
+RUN /app/.venv/bin/python -m ensurepip --upgrade && \
+    if [ -n "$PIP_INDEX_URL" ]; then \
+        /app/.venv/bin/python -m pip install --index-url "$PIP_INDEX_URL" 'watchfiles>=1.0.0'; \
+    else \
+        /app/.venv/bin/python -m pip install 'watchfiles>=1.0.0'; \
+    fi
+
+COPY docker/scripts/dev-docreader-entrypoint.sh /usr/local/bin/dev-docreader-entrypoint.sh
+RUN chmod +x /usr/local/bin/dev-docreader-entrypoint.sh
+
+EXPOSE 50051
+ENTRYPOINT ["/usr/local/bin/dev-docreader-entrypoint.sh"]

@@ -1,4 +1,4 @@
-.PHONY: help build run test clean docker-build-app docker-build-docreader docker-build-frontend docker-build-all docker-run migrate-up migrate-down docker-restart docker-stop start-all stop-all start-ollama stop-ollama build-images build-images-app build-images-docreader build-images-frontend clean-images check-env list-containers pull-images show-platform dev-start dev-stop dev-restart dev-logs dev-status dev-app dev-frontend docs install-swagger build-lite run-lite package-lite anydoc-lib build-anydoc
+.PHONY: help build run test clean docker-build-app docker-build-docreader docker-build-frontend docker-build-all docker-run migrate-up migrate-down docker-restart docker-stop start-all stop-all start-ollama stop-ollama build-images build-images-app build-images-docreader build-images-frontend clean-images check-env list-containers pull-images show-platform dev-start dev-stop dev-restart dev-logs dev-status dev-app dev-frontend dev-docker-hot dev-docker-down dev-docker-logs dev-docker-status docs install-swagger build-lite run-lite package-lite anydoc-lib build-anydoc
 
 # Show help
 help:
@@ -65,6 +65,8 @@ help:
 	@echo "  dev-app           启动后端应用（本地运行，需先运行 dev-start）"
 	@echo "                    已 make anydoc-lib 时自动链接 anydoc 引擎"
 	@echo "  dev-frontend      启动前端（本地运行，需先运行 dev-start）"
+	@echo "  dev-docker-hot    全栈 Docker 开发（Air + Vite HMR，含基础设施）"
+	@echo "  dev-docker-down   停止全栈 Docker 开发环境"
 	@echo ""
 	@echo "Lite 模式（零外部依赖）:"
 	@echo "  build-lite        构建 Lite 版本（先构建前端到 web/，再构建 Go；SKIP_FRONTEND=1 跳过前端）"
@@ -390,3 +392,15 @@ endif
 
 dev-frontend:
 	$(DEV_SHELL) ./scripts/dev.sh frontend
+
+dev-docker-hot:
+	$(DEV_SHELL) ./scripts/dev-docker-hot.sh up
+
+dev-docker-down:
+	$(DEV_SHELL) ./scripts/dev-docker-hot.sh down
+
+dev-docker-logs:
+	$(DEV_SHELL) ./scripts/dev-docker-hot.sh logs
+
+dev-docker-status:
+	$(DEV_SHELL) ./scripts/dev-docker-hot.sh status

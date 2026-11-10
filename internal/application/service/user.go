@@ -967,6 +967,55 @@ func (s *userService) GenerateTokens(
 	return s.generateTokensForTenant(ctx, user, s.resolveLoginTenantID(ctx, user))
 }
 
+const dshWorkIntegrationAccessTTL = time.Hour
+
+// IssueDshWorkIntegrationAccessToken issues a short-lived access token for
+// dsh-work integration. The token is scoped to the user's home tenant only.
+func (s *userService) IssueDshWorkIntegrationAccessToken(
+	ctx context.Context,
+	user *types.User,
+) (accessToken string, tenantID uint64, expiresIn int, err error) {
+	if user == nil {
+		return "", 0, 0, fmt.Errorf("user required")
+	}
+	homeTenantID := user.TenantID
+	if homeTenantID == 0 {
+		homeTenantID = s.homeOrFirstMembershipTenant(ctx, user)
+	}
+	expiresIn = int(dshWorkIntegrationAccessTTL.Seconds())
+	if expiresIn > 3600 {
+		expiresIn = 3600
+	}
+
+	accessClaims := jwt.MapClaims{
+		"user_id":   user.ID,
+		"email":     user.Email,
+		"tenant_id": homeTenantID,
+		"exp":       time.Now().Add(dshWorkIntegrationAccessTTL).Unix(),
+		"iat":       time.Now().Unix(),
+		"type":      "access",
+	}
+	accessTokenObj := jwt.NewWithClaims(jwt.SigningMethodHS256, accessClaims)
+	accessToken, err = accessTokenObj.SignedString([]byte(getJwtSecret()))
+	if err != nil {
+		return "", 0, 0, err
+	}
+
+	accessTokenRecord := &types.AuthToken{
+		ID:        uuid.New().String(),
+		UserID:    user.ID,
+		Token:     accessToken,
+		TokenType: "access_token",
+		ExpiresAt: time.Now().Add(dshWorkIntegrationAccessTTL),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+	if err := s.tokenRepo.CreateToken(ctx, accessTokenRecord); err != nil {
+		return "", 0, 0, fmt.Errorf("persist access token: %w", err)
+	}
+	return accessToken, homeTenantID, expiresIn, nil
+}
+
 // resolveLoginTenantID picks the tenant whose ID should be encoded in a
 // freshly minted access token. The contract:
 //

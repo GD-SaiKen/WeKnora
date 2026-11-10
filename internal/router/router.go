@@ -99,6 +99,7 @@ type RouterParams struct {
 	WikiPageHandler              *handler.WikiPageHandler
 	MemoryHandler                *handler.MemoryHandler
 	AutomationHandler            *handler.AutomationHandler
+	DshWorkIntegrationHandler    *handler.DshWorkIntegrationHandler
 	HostSandbox                  service.HostSandboxManager
 	OperationDispatcher          *operations.HandlerDispatcher
 }
@@ -213,6 +214,7 @@ func NewRouter(params RouterParams) *gin.Engine {
 	// middleware). The ticket is minted by an authenticated POST.
 	RegisterSandboxTerminalRoutes(r, params.SessionHandler)
 	RegisterSandboxDesktopRoutes(r, params.SessionHandler)
+	RegisterDshWorkIntegrationRoutes(r, params.DshWorkIntegrationHandler)
 	r.GET("/api/v1/local-browser/extension", params.SessionHandler.BrowserSkillExtension)
 	r.POST("/api/v1/local-browser/extension/authorize", params.SessionHandler.BrowserSkillAuthorize)
 	r.POST("/api/v1/local-browser/internal", params.SessionHandler.BrowserSkillInternal)

@@ -9,8 +9,9 @@ type AuthLoginResponse struct {
 	User         *types.User        `json:"user,omitempty"`
 	ActiveTenant *TenantResponse    `json:"active_tenant,omitempty"`
 	Memberships  []types.Membership `json:"memberships"`
-	Token        string             `json:"token,omitempty"`
-	RefreshToken string             `json:"refresh_token,omitempty"`
+	Token           string             `json:"token,omitempty"`
+	RefreshToken    string             `json:"refresh_token,omitempty"`
+	BindRedirectURL string             `json:"bind_redirect_url,omitempty"`
 }
 
 // AuthOIDCCallbackResponse is the HTTP-safe OIDC callback payload shape.
@@ -40,8 +41,9 @@ func NewAuthLoginResponse(resp *types.LoginResponse) *AuthLoginResponse {
 		User:         resp.User,
 		ActiveTenant: NewTenantResponseWithRole(resp.ActiveTenant, role),
 		Memberships:  resp.Memberships,
-		Token:        resp.Token,
-		RefreshToken: resp.RefreshToken,
+		Token:           resp.Token,
+		RefreshToken:    resp.RefreshToken,
+		BindRedirectURL: resp.BindRedirectURL,
 	}
 }
 

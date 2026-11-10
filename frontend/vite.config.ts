@@ -1,6 +1,7 @@
 import { fileURLToPath, URL } from 'node:url'
-import { resolve, dirname } from 'node:path'
+import { resolve, dirname, relative } from 'node:path'
 import { existsSync } from 'node:fs'
+import { readdir, stat } from 'node:fs/promises'
 import { execSync } from 'node:child_process'
 import { copyPdfJsWasm } from './scripts/copy-pdfjs-wasm.mjs'
 import { createRequire } from 'node:module'
@@ -52,6 +53,96 @@ const DEV_PROXY_TARGET =
   process.env.VITE_DEV_PROXY_TARGET ||
   process.env.FRONTEND_BACKEND_URL ||
   'http://localhost:8080'
+
+// Docker/WSL bind mounts swallow fs events AND chokidar's fs.watchFile polling
+// never observes host writes (statSync does). When CHOKIDAR_USEPOLLING=true is
+// injected (dev containers), watch src/ with an async stat sweep and trigger a
+// full reload on any add/change/delete. Uses fs/promises (libuv thread pool) so
+// the 9p stat latency never blocks the dev server's event loop. Host-native dev
+// keeps event-driven HMR.
+function pollingFullReloadWatcher(): Plugin {
+  if (process.env.CHOKIDAR_USEPOLLING !== 'true') {
+    return { name: 'dev-polling-watcher-disabled' }
+  }
+  const rootDir = __dirname
+  const watchRoots = [resolve(rootDir, 'src'), resolve(rootDir, 'index.html')]
+  const SWEEP_CONCURRENCY = 32
+  const snapshot = async (): Promise<Map<string, number>> => {
+    const out = new Map<string, number>()
+    const statQueue: string[] = []
+    const walk = async (dir: string) => {
+      for (const entry of await readdir(dir, { withFileTypes: true })) {
+        const p = resolve(dir, entry.name)
+        if (entry.isDirectory()) await walk(p)
+        else statQueue.push(p)
+      }
+    }
+    for (const target of watchRoots) {
+      if ((await stat(target)).isDirectory()) await walk(target)
+      else out.set(target, (await stat(target)).mtimeMs)
+    }
+    for (let i = 0; i < statQueue.length; i += SWEEP_CONCURRENCY) {
+      const batch = statQueue.slice(i, i + SWEEP_CONCURRENCY)
+      const mtimes = await Promise.all(
+        batch.map(async (p) => {
+          try {
+            return (await stat(p)).mtimeMs
+          } catch {
+            return -1 // deleted mid-sweep; treated as removed next sweep
+          }
+        }),
+      )
+      for (let j = 0; j < batch.length; j++) out.set(batch[j], mtimes[j])
+    }
+    return out
+  }
+  return {
+    name: 'dev-polling-full-reload',
+    apply: 'serve',
+    configureServer(server) {
+      let sweeping = false
+      let snap = new Map<string, number>()
+      const sweep = async () => {
+        if (sweeping) return
+        sweeping = true
+        try {
+          const next = await snapshot()
+          if (snap.size === 0) {
+            snap = next // first sweep only primes the baseline
+            return
+          }
+          let changed = false
+          for (const [p, m] of next) {
+            if (snap.get(p) !== m) {
+              changed = true
+              console.log(`[polling-watcher] ${snap.has(p) ? 'change' : 'add'}: ${relative(rootDir, p)}`)
+              break
+            }
+          }
+          if (!changed) {
+            for (const p of snap.keys()) {
+              if (!next.has(p)) {
+                changed = true
+                console.log(`[polling-watcher] remove: ${relative(rootDir, p)}`)
+                break
+              }
+            }
+          }
+          if (changed) {
+            snap = next
+            server.hot.send({ type: 'full-reload' })
+          }
+        } catch {
+          // files mid-write on the bind mount; retry next sweep
+        } finally {
+          sweeping = false
+        }
+      }
+      const timer = setInterval(sweep, 3000)
+      server.httpServer?.on('close', () => clearInterval(timer))
+    },
+  }
+}
 
 function resolveVueOfficePptxEntry(): string {
   try {
@@ -142,6 +233,7 @@ export default defineConfig({
     vueJsx(),
     embedHtmlDevFallback(),
     pdfJsWasmAssets(),
+    pollingFullReloadWatcher(),
   ],
   resolve: {
     dedupe: ['vue', 'vue-demi'],
@@ -153,6 +245,14 @@ export default defineConfig({
   server: {
     port: 5173,
     host: true,
+    // Docker/WSL 绑定挂载不转发文件事件，且 chokidar 的 fs.watchFile 轮询在该
+    // 挂载上永远读到过期 stat（导致 vite 内 statSync 也异常）。注入
+    // CHOKIDAR_USEPOLLING=true 时让 chokidar 不监视任何文件，改由下方
+    // pollingFullReloadWatcher 插件用 statSync 扫描并触发 full-reload；
+    // 本机原生开发不受影响（保持事件驱动 HMR）。
+    watch: process.env.CHOKIDAR_USEPOLLING === 'true'
+      ? { ignored: ['**'] }
+      : {},
     // 代理配置，用于开发环境
     proxy: {
       '/mcp/': {
