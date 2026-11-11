@@ -58,7 +58,15 @@ func newTestEngineWithRepo(t *testing.T, ep *types.MCPEndpoint) (*gin.Engine, *r
 	return r, repo
 }
 
+// rpc 走「按 endpoint_id 的 MCP 路由」，即上游默认入口。
 func rpc(t *testing.T, r *gin.Engine, method string, params any) map[string]any {
+	t.Helper()
+	return rpcAt(t, r, "/mcp/ep-1", method, params)
+}
+
+// rpcAt 允许指定路由。统一共享入口挂在 /mcp（不带 endpoint_id），
+// 相关测试必须用它，否则会落到 gin 的 404。
+func rpcAt(t *testing.T, r *gin.Engine, path, method string, params any) map[string]any {
 	t.Helper()
 	body, _ := json.Marshal(map[string]any{
 		"jsonrpc": "2.0",
@@ -66,7 +74,7 @@ func rpc(t *testing.T, r *gin.Engine, method string, params any) map[string]any 
 		"method":  method,
 		"params":  params,
 	})
-	req := httptest.NewRequest(http.MethodPost, "/mcp/ep-1", bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, path, bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json, text/event-stream")
 	w := httptest.NewRecorder()

@@ -76,7 +76,7 @@ func defaultSharedCall(role types.TenantRole) *types.SharedMCPCall {
 
 func TestSharedMCPToolsListRespectsCeiling(t *testing.T) {
 	r := newTestSharedEngine(t, defaultSharedCall(types.TenantRoleViewer), nil)
-	names := toolNames(t, rpc(t, r, "tools/list", map[string]any{}))
+	names := toolNames(t, rpcAt(t, r, "/mcp", "tools/list", map[string]any{}))
 	sort.Strings(names)
 	want := append([]string(nil), types.DefaultSharedMCPTools()...)
 	sort.Strings(want)
@@ -92,7 +92,7 @@ func TestSharedMCPToolsListRespectsCeiling(t *testing.T) {
 
 func TestSharedMCPCallOutsideCeilingIs32602(t *testing.T) {
 	r := newTestSharedEngine(t, defaultSharedCall(types.TenantRoleAdmin), nil)
-	resp := rpc(t, r, "tools/call", map[string]any{
+	resp := rpcAt(t, r, "/mcp", "tools/call", map[string]any{
 		"name":      types.MCPEndpointToolAsk,
 		"arguments": map[string]any{"question": "hi"},
 	})
@@ -107,7 +107,7 @@ func TestSharedMCPViewerDestructiveIsToolError(t *testing.T) {
 	call.Tools = append(call.Tools, types.MCPEndpointToolAddDocument)
 	audit := &captureSharedMCPAudit{}
 	r := newTestSharedEngine(t, call, audit)
-	resp := rpc(t, r, "tools/call", map[string]any{
+	resp := rpcAt(t, r, "/mcp", "tools/call", map[string]any{
 		"name":      types.MCPEndpointToolAddDocument,
 		"arguments": map[string]any{"knowledge_base_id": "kb-1", "title": "t", "content": "c"},
 	})
@@ -144,18 +144,20 @@ func TestSharedMCPRateLimitIsPerUser(t *testing.T) {
 	rA := gin.New()
 	rA.POST("/mcp", func(c *gin.Context) {
 		ctx := context.WithValue(c.Request.Context(), types.SharedMCPContextKey, callA)
+		ctx = context.WithValue(ctx, types.TenantIDContextKey, callA.TenantID)
 		c.Request = c.Request.WithContext(ctx)
 		c.Next()
 	}, gin.WrapH(srv.Handler()))
 	rB := gin.New()
 	rB.POST("/mcp", func(c *gin.Context) {
 		ctx := context.WithValue(c.Request.Context(), types.SharedMCPContextKey, callB)
+		ctx = context.WithValue(ctx, types.TenantIDContextKey, callB.TenantID)
 		c.Request = c.Request.WithContext(ctx)
 		c.Next()
 	}, gin.WrapH(srv.Handler()))
 
 	callRead := func(r *gin.Engine) string {
-		resp := rpc(t, r, "tools/call", map[string]any{
+		resp := rpcAt(t, r, "/mcp", "tools/call", map[string]any{
 			"name":      types.MCPEndpointToolReadDocument,
 			"arguments": map[string]any{},
 		})
