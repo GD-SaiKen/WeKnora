@@ -40,6 +40,8 @@ services:
       dockerfile: docker/Dockerfile.app
       args:
         - APK_MIRROR_ARG=${APK_MIRROR_ARG:-}
+        - GOPROXY_ARG=${GOPROXY:-https://goproxy.cn,direct}
+        - GOSUMDB_ARG=${GOSUMDB:-off}
         - WITH_ANYDOC=${WITH_ANYDOC:-1}
         # Build metadata shown on the system-info page. start_all.sh injects
         # these from git and the VERSION file; with a plain `docker compose
@@ -433,6 +435,7 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.docreader
+      target: runner
       args:
         - APT_MIRROR=${APT_MIRROR:-}
         - PLAYWRIGHT_DOWNLOAD_HOST=${PLAYWRIGHT_DOWNLOAD_HOST:-}

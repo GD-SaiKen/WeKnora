@@ -131,7 +131,8 @@ prepare_patched_anydoc
 # --locked: build exactly the dependency versions in the committed Cargo.lock.
 # That lockfile is what pins the patched pdf-inspector/lopdf, so a silent
 # resolver drift must fail the build rather than ship an unaudited tree.
-cargo build --release --locked --manifest-path "$crate_dir/Cargo.toml" --target "$target"
+# Go 1.26+ cgo rejects static archives with LLVM LTO metadata (.llvmbc).
+RUSTFLAGS="${RUSTFLAGS:-} -C lto=off" cargo build --release --locked --manifest-path "$crate_dir/Cargo.toml" --target "$target"
 
 dest="$crate_dir/lib/$lib_dir"
 mkdir -p "$dest"

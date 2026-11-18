@@ -23,7 +23,16 @@ RUN set -eux; \
     [ "${success}" = "1" ]
 ENV RUSTUP_HOME=/usr/local/rustup CARGO_HOME=/usr/local/cargo
 ENV PATH=/usr/local/cargo/bin:$PATH
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain stable
+# rsproxy.cn mirrors rustup static payloads when sh.rustup.rs is unreachable.
+ENV RUSTUP_DIST_SERVER=https://rsproxy.cn
+ENV RUSTUP_UPDATE_ROOT=https://rsproxy.cn/rustup
+RUN set -e; \
+    for url in https://rsproxy.cn/rustup-init.sh https://sh.rustup.rs; do \
+      if curl -f --proto '=https' --tlsv1.2 -sSf "$url" | sh -s -- -y --profile minimal --default-toolchain stable; then \
+        break; \
+      fi; \
+    done; \
+    command -v cargo
 COPY scripts/build_browserskill.sh scripts/browserskill-release.json ./scripts/
 ARG TARGETOS
 ARG TARGETARCH
@@ -87,8 +96,13 @@ ENV PATH=/usr/local/cargo/bin:$PATH
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/usr/local/cargo/git \
     if [ "$WITH_ANYDOC" = "1" ]; then \
-        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
-            | sh -s -- -y --profile minimal --default-toolchain stable && \
+        RUSTUP_DIST_SERVER="${RUSTUP_DIST_SERVER:-https://rsproxy.cn}" \
+        RUSTUP_UPDATE_ROOT="${RUSTUP_UPDATE_ROOT:-https://rsproxy.cn/rustup}" \
+        set -e; ok=0; \
+        for url in https://rsproxy.cn/rustup-init.sh https://sh.rustup.rs; do \
+          if curl -f --proto '=https' --tlsv1.2 -sSf "$url" \
+              | sh -s -- -y --profile minimal --default-toolchain stable; then ok=1; break; fi; \
+        done; [ "$ok" = "1" ] && command -v cargo && \
         ./scripts/build-anydoc-lib.sh; \
     fi
 
@@ -122,10 +136,20 @@ COPY --from=browserskill /opt/weknora/browserskill /opt/weknora/browserskill
 # Create a non-root user first
 RUN useradd -m -s /bin/bash appuser
 
-# First, install ca-certificates without mirror to ensure HTTPS works
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends ca-certificates && \
-    rm -rf /var/lib/apt/lists/*
+# Install CA certs before switching APT to an HTTPS mirror (same pattern as browserskill).
+RUN set -eux; \
+    success=0; \
+    for attempt in 1 2 3 4 5; do \
+      if [ -n "$APK_MIRROR_ARG" ]; then \
+        apt-get update && apt-get install -y --no-install-recommends ca-certificates && \
+        rm -rf /var/lib/apt/lists/* && \
+        sed -i "s@deb.debian.org@${APK_MIRROR_ARG}@g" /etc/apt/sources.list.d/debian.sources; \
+      fi && \
+      apt-get update && apt-get install -y --no-install-recommends ca-certificates && \
+      rm -rf /var/lib/apt/lists/* && success=1 && break; \
+      echo "runtime ca-certificates apt attempt ${attempt} failed, retry in 20s..."; sleep 20; \
+    done; \
+    [ "${success}" = "1" ]
 
 # Then switch to mirror if specified and install other packages
 RUN if [ -n "$APK_MIRROR_ARG" ]; then \
